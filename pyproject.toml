@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cops-and-robbers"
+version = "0.1.0"
+description = "Graph Theft Auto: a playable Cops and Robbers game on graphs."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pygame>=2.5.0",
+    "networkx>=3.2.0",
+    "numpy>=1.26.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

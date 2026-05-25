@@ -85,7 +85,7 @@ class Renderer:
 
         legal_moves = set(rules.get_legal_moves(state))
         self._draw_graph(state, layout, legal_moves)
-        self._draw_panel(state, panel_rect, buttons, mode_label, bot_label)
+        self._draw_panel(state, layout, panel_rect, buttons, mode_label, bot_label)
 
     def draw_placement(
         self,
@@ -114,6 +114,7 @@ class Renderer:
         self._draw_placement_graph(graph, layout, selectable, selected_cop_position)
         self._draw_placement_panel(
             graph,
+            layout,
             panel_rect,
             buttons,
             round_limit,
@@ -193,6 +194,7 @@ class Renderer:
     def _draw_panel(
         self,
         state: GameState,
+        layout: GraphLayout,
         panel_rect: pygame.Rect,
         buttons: list[Button],
         mode_label: str,
@@ -226,12 +228,18 @@ class Renderer:
             self.surface.blit(text, (x, y))
             y += 29
 
-        for line in [f"mode: {mode_label}", f"bot: {bot_label}"]:
+        layout_label = "planar" if layout.layout_method == "planar" else "low-crossing"
+        for line in [
+            f"mode: {mode_label}",
+            f"bot: {bot_label}",
+            f"layout: {layout_label}",
+            f"crossings: {layout.edge_crossings}",
+        ]:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
             self.surface.blit(text, (x, y))
             y += 22
 
-        y += 12
+        y = self._hint_y(y + 12, buttons)
         hint_lines = ["Click highlighted vertices.", "R: restart   N: new graph"]
         for line in hint_lines:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
@@ -244,6 +252,7 @@ class Renderer:
     def _draw_placement_panel(
         self,
         graph: GraphModel,
+        layout: GraphLayout,
         panel_rect: pygame.Rect,
         buttons: list[Button],
         round_limit: int,
@@ -279,7 +288,13 @@ class Renderer:
             self.surface.blit(text, (x, y))
             y += 22
 
-        y += 12
+        layout_label = "planar" if layout.layout_method == "planar" else "low-crossing"
+        for line in [f"layout: {layout_label}", f"crossings: {layout.edge_crossings}"]:
+            text = self.small_font.render(line, True, colors.MUTED_TEXT)
+            self.surface.blit(text, (x, y))
+            y += 22
+
+        y = self._hint_y(y + 12, buttons)
         hint_lines = ["Click highlighted vertices.", "Cop and robber must differ."]
         for line in hint_lines:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
@@ -288,3 +303,9 @@ class Renderer:
 
         for button in buttons:
             button.draw(self.surface, self.font)
+
+    def _hint_y(self, preferred_y: int, buttons: list[Button]) -> int:
+        if not buttons:
+            return preferred_y
+        first_button_y = min(button.rect.y for button in buttons)
+        return min(preferred_y, first_button_y - 58)

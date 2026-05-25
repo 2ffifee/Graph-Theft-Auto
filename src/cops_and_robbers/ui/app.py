@@ -53,8 +53,10 @@ class BotKind(Enum):
 
 
 class CopsAndRobbersApp:
-    WIDTH = 1100
-    HEIGHT = 750
+    WIDTH = 1280
+    HEIGHT = 820
+    MIN_WIDTH = 1000
+    MIN_HEIGHT = 700
 
     def __init__(
         self,
@@ -66,7 +68,7 @@ class CopsAndRobbersApp:
     ):
         pygame.init()
         pygame.display.set_caption("Graph Theft Auto")
-        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.RESIZABLE)
         self.clock = pygame.time.Clock()
         self.renderer = Renderer(self.screen)
         self.input_handler = InputHandler()
@@ -89,8 +91,9 @@ class CopsAndRobbersApp:
         self.layout: GraphLayout | None = None
         self.selected_cop_position: int | None = None
 
-        self.board_rect = pygame.Rect(20, 76, 790, 650)
-        self.panel_rect = pygame.Rect(830, 76, 250, 650)
+        self.board_rect = pygame.Rect(0, 0, 0, 0)
+        self.panel_rect = pygame.Rect(0, 0, 0, 0)
+        self._configure_layout_rects(self.WIDTH, self.HEIGHT)
         self.last_bot_action_ms = 0
         self.bot_move_delay_ms = 300
 
@@ -131,6 +134,10 @@ class CopsAndRobbersApp:
     def handle_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.QUIT:
             self.running = False
+            return
+
+        if event.type == pygame.VIDEORESIZE:
+            self._resize_window(event.w, event.h)
             return
 
         if event.type == pygame.KEYDOWN:
@@ -344,17 +351,23 @@ class CopsAndRobbersApp:
         ]
 
     def _game_buttons(self) -> list[Button]:
+        x = self.panel_rect.x + 22
+        y = self.panel_rect.bottom - 180
+        width = self.panel_rect.width - 44
         return [
-            Button(pygame.Rect(852, 392, 205, 38), "New Graph", "new_graph"),
-            Button(pygame.Rect(852, 442, 205, 38), "Restart", "restart"),
-            Button(pygame.Rect(852, 492, 205, 38), "Setup", "setup"),
+            Button(pygame.Rect(x, y, width, 38), "New Graph", "new_graph"),
+            Button(pygame.Rect(x, y + 50, width, 38), "Restart", "restart"),
+            Button(pygame.Rect(x, y + 100, width, 38), "Setup", "setup"),
         ]
 
     def _placement_buttons(self) -> list[Button]:
+        x = self.panel_rect.x + 22
+        y = self.panel_rect.bottom - 180
+        width = self.panel_rect.width - 44
         return [
-            Button(pygame.Rect(852, 392, 205, 38), "New Graph", "new_graph"),
-            Button(pygame.Rect(852, 442, 205, 38), "Clear Choice", "restart"),
-            Button(pygame.Rect(852, 492, 205, 38), "Setup", "setup"),
+            Button(pygame.Rect(x, y, width, 38), "New Graph", "new_graph"),
+            Button(pygame.Rect(x, y + 50, width, 38), "Clear Choice", "restart"),
+            Button(pygame.Rect(x, y + 100, width, 38), "Setup", "setup"),
         ]
 
     def _stepper_y(self, label: str) -> int:
@@ -450,3 +463,37 @@ class CopsAndRobbersApp:
     def _previous_enum_value(self, enum_type: type[Enum], current: Enum) -> Enum:
         values = list(enum_type)
         return values[(values.index(current) - 1) % len(values)]
+
+    def _resize_window(self, width: int, height: int) -> None:
+        width = max(self.MIN_WIDTH, width)
+        height = max(self.MIN_HEIGHT, height)
+        self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+        self.renderer.surface = self.screen
+        self._configure_layout_rects(width, height)
+        self._recompute_graph_layout()
+
+    def _configure_layout_rects(self, width: int, height: int) -> None:
+        panel_width = 310
+        outer_margin = 20
+        top = 76
+        bottom_margin = 24
+        gap = 20
+        board_width = max(520, width - panel_width - gap - 2 * outer_margin)
+        board_height = max(520, height - top - bottom_margin)
+        self.board_rect = pygame.Rect(outer_margin, top, board_width, board_height)
+        self.panel_rect = pygame.Rect(
+            self.board_rect.right + gap,
+            top,
+            panel_width,
+            board_height,
+        )
+
+    def _recompute_graph_layout(self) -> None:
+        if self.graph is None:
+            return
+        self.layout = GraphLayout(
+            self.graph,
+            self.board_rect.width,
+            self.board_rect.height,
+            origin=(self.board_rect.x, self.board_rect.y),
+        )

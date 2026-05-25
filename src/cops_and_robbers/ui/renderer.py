@@ -154,12 +154,12 @@ class Renderer:
         cop_pos = positions[state.cop_position]
         robber_pos = positions[state.robber_position]
         if state.cop_position == state.robber_position:
-            pygame.draw.circle(self.surface, colors.COP, cop_pos, 13)
-            pygame.draw.circle(self.surface, colors.ROBBER, cop_pos, 8)
+            self._draw_cop_car(cop_pos, scale=0.9)
+            self._draw_robber_marker((cop_pos[0] + 20, cop_pos[1] + 14), scale=0.9)
             return
 
-        pygame.draw.circle(self.surface, colors.COP, (cop_pos[0] - 12, cop_pos[1] - 18), 10)
-        pygame.draw.circle(self.surface, colors.ROBBER, (robber_pos[0] + 12, robber_pos[1] - 18), 10)
+        self._draw_cop_car((cop_pos[0] - 12, cop_pos[1] - 19), scale=0.86)
+        self._draw_robber_marker((robber_pos[0] + 14, robber_pos[1] - 18), scale=0.95)
 
     def _draw_placement_graph(
         self,
@@ -189,7 +189,126 @@ class Renderer:
 
         if selected_cop_position is not None:
             cop_pos = positions[selected_cop_position]
-            pygame.draw.circle(self.surface, colors.COP, (cop_pos[0] - 12, cop_pos[1] - 18), 10)
+            self._draw_cop_car((cop_pos[0] - 12, cop_pos[1] - 19), scale=0.82)
+
+    def _draw_cop_car(self, center: tuple[float, float], scale: float = 1.0) -> None:
+        x, y = center
+        body = pygame.Rect(0, 0, int(34 * scale), int(18 * scale))
+        body.center = (round(x), round(y))
+        roof = pygame.Rect(0, 0, int(17 * scale), int(10 * scale))
+        roof.center = (round(x), round(y - 7 * scale))
+        wheel_radius = max(2, round(3 * scale))
+
+        pygame.draw.rect(self.surface, (245, 248, 255), body, border_radius=round(4 * scale))
+        pygame.draw.rect(self.surface, colors.COP, body, width=max(1, round(2 * scale)), border_radius=round(4 * scale))
+        pygame.draw.rect(self.surface, (180, 220, 255), roof, border_radius=round(3 * scale))
+        pygame.draw.rect(self.surface, colors.VERTEX_OUTLINE, body, width=1, border_radius=round(4 * scale))
+        pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.left + round(8 * scale), body.bottom), wheel_radius)
+        pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.right - round(8 * scale), body.bottom), wheel_radius)
+        pygame.draw.circle(self.surface, (230, 50, 50), (round(x - 4 * scale), roof.top), max(2, round(2 * scale)))
+        pygame.draw.circle(self.surface, colors.COP, (round(x + 4 * scale), roof.top), max(2, round(2 * scale)))
+
+    def _draw_robber_marker(self, center: tuple[float, float], scale: float = 1.0) -> None:
+        x, y = center
+        self._draw_stolen_car((x + 8 * scale, y + 10 * scale), scale * 0.72)
+        self._draw_black_clad_robber((x - 8 * scale, y - 2 * scale), scale)
+
+    def _draw_stolen_car(self, center: tuple[float, float], scale: float = 1.0) -> None:
+        x, y = center
+        body = pygame.Rect(0, 0, int(32 * scale), int(15 * scale))
+        body.center = (round(x), round(y))
+        roof = pygame.Rect(0, 0, int(15 * scale), int(8 * scale))
+        roof.center = (round(x + 2 * scale), round(y - 6 * scale))
+        wheel_radius = max(2, round(3 * scale))
+
+        pygame.draw.rect(self.surface, (32, 34, 38), body, border_radius=round(4 * scale))
+        pygame.draw.rect(self.surface, (75, 78, 86), roof, border_radius=round(3 * scale))
+        pygame.draw.rect(self.surface, (12, 12, 14), body, width=1, border_radius=round(4 * scale))
+        pygame.draw.circle(self.surface, (235, 215, 80), (body.left + round(3 * scale), body.centery), max(1, round(1.5 * scale)))
+        pygame.draw.circle(self.surface, colors.ROBBER, (body.right - round(3 * scale), body.centery), max(1, round(1.5 * scale)))
+        pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.left + round(8 * scale), body.bottom), wheel_radius)
+        pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.right - round(8 * scale), body.bottom), wheel_radius)
+
+    def _draw_black_clad_robber(self, center: tuple[float, float], scale: float = 1.0) -> None:
+        x, y = center
+        outline = (245, 245, 245)
+        black = (8, 8, 10)
+        dark = (20, 20, 24)
+        gray = (52, 52, 58)
+        head_radius = max(5, round(7 * scale))
+        head_center = (round(x), round(y - 13 * scale))
+        torso = pygame.Rect(0, 0, max(8, int(13 * scale)), max(13, int(18 * scale)))
+        torso.center = (round(x), round(y + 4 * scale))
+        arm_y = round(y + 2 * scale)
+        leg_top = round(y + 13 * scale)
+
+        pygame.draw.circle(self.surface, outline, head_center, head_radius + 1)
+        pygame.draw.rect(self.surface, outline, torso.inflate(2, 2), border_radius=round(4 * scale))
+        pygame.draw.line(
+            self.surface,
+            outline,
+            (round(x - 7 * scale), arm_y),
+            (round(x - 15 * scale), round(y + 11 * scale)),
+            width=max(2, round(4 * scale)),
+        )
+        pygame.draw.line(
+            self.surface,
+            outline,
+            (round(x + 7 * scale), arm_y),
+            (round(x + 13 * scale), round(y + 9 * scale)),
+            width=max(2, round(4 * scale)),
+        )
+        pygame.draw.line(
+            self.surface,
+            outline,
+            (round(x - 3 * scale), leg_top),
+            (round(x - 9 * scale), round(y + 24 * scale)),
+            width=max(2, round(4 * scale)),
+        )
+        pygame.draw.line(
+            self.surface,
+            outline,
+            (round(x + 3 * scale), leg_top),
+            (round(x + 9 * scale), round(y + 24 * scale)),
+            width=max(2, round(4 * scale)),
+        )
+
+        pygame.draw.circle(self.surface, black, head_center, head_radius)
+        pygame.draw.rect(self.surface, dark, torso, border_radius=round(4 * scale))
+        pygame.draw.line(
+            self.surface,
+            black,
+            (round(x - 7 * scale), arm_y),
+            (round(x - 15 * scale), round(y + 11 * scale)),
+            width=max(1, round(2.5 * scale)),
+        )
+        pygame.draw.line(
+            self.surface,
+            black,
+            (round(x + 7 * scale), arm_y),
+            (round(x + 13 * scale), round(y + 9 * scale)),
+            width=max(1, round(2.5 * scale)),
+        )
+        pygame.draw.line(
+            self.surface,
+            black,
+            (round(x - 3 * scale), leg_top),
+            (round(x - 9 * scale), round(y + 24 * scale)),
+            width=max(1, round(2.5 * scale)),
+        )
+        pygame.draw.line(
+            self.surface,
+            black,
+            (round(x + 3 * scale), leg_top),
+            (round(x + 9 * scale), round(y + 24 * scale)),
+            width=max(1, round(2.5 * scale)),
+        )
+
+        eye_y = head_center[1] - round(1 * scale)
+        eye_band = pygame.Rect(round(x - 6 * scale), eye_y - 2, max(7, round(12 * scale)), max(3, round(4 * scale)))
+        pygame.draw.rect(self.surface, gray, eye_band, border_radius=round(2 * scale))
+        pygame.draw.circle(self.surface, (245, 245, 245), (head_center[0] - round(2 * scale), eye_y), max(1, round(1.2 * scale)))
+        pygame.draw.circle(self.surface, (245, 245, 245), (head_center[0] + round(2 * scale), eye_y), max(1, round(1.2 * scale)))
 
     def _draw_panel(
         self,

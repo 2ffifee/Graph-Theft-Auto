@@ -42,3 +42,15 @@ class GameState:
         if self.current_player is PlayerRole.COP:
             return self.cop_position
         return self.robber_position
+
+    def clone(self) -> "GameState":
+        return GameState(
+            graph=self.graph,
+            cop_position=self.cop_position,
+            robber_position=self.robber_position,
+            round_limit=self.round_limit,
+            current_player=self.current_player,
+            current_round=self.current_round,
+            status=self.status,
+            move_history=list(self.move_history),
+        )

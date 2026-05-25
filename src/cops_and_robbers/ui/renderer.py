@@ -29,14 +29,14 @@ class Renderer:
         self,
         steppers: list[Stepper],
         buttons: list[Button],
-        message: str | None,
+        option_rows: list[tuple[str, str]],
         error: str | None,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
         self.surface.blit(title, (40, 40))
 
-        panel = pygame.Rect(40, 105, 410, 265)
+        panel = pygame.Rect(40, 105, 490, 430)
         pygame.draw.rect(self.surface, colors.PANEL_BG, panel, border_radius=8)
         pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel, width=1, border_radius=8)
 
@@ -45,15 +45,23 @@ class Renderer:
             stepper.draw(self.surface, self.font, 75, y)
             y += 54
 
+        option_y = 363
+        for label, value in option_rows:
+            label_surface = self.font.render(label, True, colors.TEXT)
+            self.surface.blit(label_surface, (75, option_y + 5))
+            value_rect = pygame.Rect(246, option_y, 205, 30)
+            pygame.draw.rect(self.surface, colors.VERTEX, value_rect, border_radius=4)
+            pygame.draw.rect(self.surface, colors.PANEL_BORDER, value_rect, width=1, border_radius=4)
+            value_surface = self.small_font.render(value, True, colors.TEXT)
+            self.surface.blit(value_surface, value_surface.get_rect(center=value_rect.center))
+            option_y += 48
+
         for button in buttons:
             button.draw(self.surface, self.font)
 
-        if message:
-            msg = self.small_font.render(message, True, colors.MUTED_TEXT)
-            self.surface.blit(msg, (75, 332))
         if error:
             err = self.small_font.render(error, True, colors.ERROR)
-            self.surface.blit(err, (75, 352))
+            self.surface.blit(err, (75, 512))
 
     def draw_game(
         self,
@@ -63,6 +71,8 @@ class Renderer:
         board_rect: pygame.Rect,
         panel_rect: pygame.Rect,
         buttons: list[Button],
+        mode_label: str,
+        bot_label: str,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
@@ -75,7 +85,7 @@ class Renderer:
 
         legal_moves = set(rules.get_legal_moves(state))
         self._draw_graph(state, layout, legal_moves)
-        self._draw_panel(state, panel_rect, buttons)
+        self._draw_panel(state, panel_rect, buttons, mode_label, bot_label)
 
     def draw_placement(
         self,
@@ -86,6 +96,8 @@ class Renderer:
         buttons: list[Button],
         round_limit: int,
         selected_cop_position: int | None,
+        mode_label: str,
+        bot_label: str,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
@@ -100,7 +112,15 @@ class Renderer:
         if selected_cop_position is not None:
             selectable.remove(selected_cop_position)
         self._draw_placement_graph(graph, layout, selectable, selected_cop_position)
-        self._draw_placement_panel(graph, panel_rect, buttons, round_limit, selected_cop_position)
+        self._draw_placement_panel(
+            graph,
+            panel_rect,
+            buttons,
+            round_limit,
+            selected_cop_position,
+            mode_label,
+            bot_label,
+        )
 
     def _draw_graph(
         self,
@@ -170,7 +190,14 @@ class Renderer:
             cop_pos = positions[selected_cop_position]
             pygame.draw.circle(self.surface, colors.COP, (cop_pos[0] - 12, cop_pos[1] - 18), 10)
 
-    def _draw_panel(self, state: GameState, panel_rect: pygame.Rect, buttons: list[Button]) -> None:
+    def _draw_panel(
+        self,
+        state: GameState,
+        panel_rect: pygame.Rect,
+        buttons: list[Button],
+        mode_label: str,
+        bot_label: str,
+    ) -> None:
         x = panel_rect.x + 22
         y = panel_rect.y + 22
         heading = self.heading_font.render("Status", True, colors.TEXT)
@@ -199,6 +226,11 @@ class Renderer:
             self.surface.blit(text, (x, y))
             y += 29
 
+        for line in [f"mode: {mode_label}", f"bot: {bot_label}"]:
+            text = self.small_font.render(line, True, colors.MUTED_TEXT)
+            self.surface.blit(text, (x, y))
+            y += 22
+
         y += 12
         hint_lines = ["Click highlighted vertices.", "R: restart   N: new graph"]
         for line in hint_lines:
@@ -216,6 +248,8 @@ class Renderer:
         buttons: list[Button],
         round_limit: int,
         selected_cop_position: int | None,
+        mode_label: str,
+        bot_label: str,
     ) -> None:
         x = panel_rect.x + 22
         y = panel_rect.y + 22
@@ -228,7 +262,6 @@ class Renderer:
             f"n: {graph.n}",
             f"m: {graph.edge_count}",
             f"round limit: {round_limit}",
-            "mode: Player vs Player",
             prompt,
             f"cop: {selected_cop_position if selected_cop_position is not None else '-'}",
             "robber: -",
@@ -240,6 +273,11 @@ class Renderer:
             text = self.font.render(line, True, color)
             self.surface.blit(text, (x, y))
             y += 29
+
+        for line in [f"mode: {mode_label}", f"bot: {bot_label}"]:
+            text = self.small_font.render(line, True, colors.MUTED_TEXT)
+            self.surface.blit(text, (x, y))
+            y += 22
 
         y += 12
         hint_lines = ["Click highlighted vertices.", "Cop and robber must differ."]

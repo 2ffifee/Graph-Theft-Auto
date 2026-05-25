@@ -54,6 +54,9 @@ pytest
 ## Current Features
 
 - Setup screen with controls for vertices `n`, edges `m`, and round limit `T`.
+- Mode selection for Player vs Player, Player vs Bot, and Bot vs Bot.
+- Bot selection between Random and Minimax.
+- Configurable minimax depth from 1 to 6 half-moves.
 - Validation for `3 <= n <= 30`, `n - 1 <= m <= n(n - 1)/2`, and `1 <= T <= 200`.
 - Connected random graph generation with exact edge count.
 - Manual starting-position selection: cop first, robber second.
@@ -61,7 +64,7 @@ pytest
 - Restart current graph and choose new starting positions.
 - Generate a new graph with the same setup values.
 - Keyboard shortcuts: `R` restarts positions, `N` generates a new graph, `Esc` quits.
-- Basic random and greedy bot classes for future modes.
+- Random, greedy, and depth-limited minimax bot classes.
 
 ## Graph Generation
 

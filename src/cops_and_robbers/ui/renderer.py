@@ -36,7 +36,7 @@ class Renderer:
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
         self.surface.blit(title, (40, 40))
 
-        panel = pygame.Rect(40, 105, 410, 265)
+        panel = pygame.Rect(40, 105, 410, 320)
         pygame.draw.rect(self.surface, colors.PANEL_BG, panel, border_radius=8)
         pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel, width=1, border_radius=8)
 
@@ -50,10 +50,10 @@ class Renderer:
 
         if message:
             msg = self.small_font.render(message, True, colors.MUTED_TEXT)
-            self.surface.blit(msg, (75, 332))
+            self.surface.blit(msg, (75, 386))
         if error:
             err = self.small_font.render(error, True, colors.ERROR)
-            self.surface.blit(err, (75, 352))
+            self.surface.blit(err, (75, 406))
 
     def draw_game(
         self,
@@ -85,7 +85,8 @@ class Renderer:
         panel_rect: pygame.Rect,
         buttons: list[Button],
         round_limit: int,
-        selected_cop_position: int | None,
+        selected_cop_positions: tuple[int, ...],
+        cop_count: int,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
@@ -97,10 +98,9 @@ class Renderer:
         pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel_rect, width=1, border_radius=8)
 
         selectable = set(graph.vertices())
-        if selected_cop_position is not None:
-            selectable.remove(selected_cop_position)
-        self._draw_placement_graph(graph, layout, selectable, selected_cop_position)
-        self._draw_placement_panel(graph, panel_rect, buttons, round_limit, selected_cop_position)
+        selectable.difference_update(selected_cop_positions)
+        self._draw_placement_graph(graph, layout, selectable, selected_cop_positions)
+        self._draw_placement_panel(graph, panel_rect, buttons, round_limit, selected_cop_positions, cop_count)
 
     def _draw_graph(
         self,
@@ -130,14 +130,13 @@ class Renderer:
         self._draw_tokens(state, positions)
 
     def _draw_tokens(self, state: GameState, positions: dict[int, tuple[float, float]]) -> None:
-        cop_pos = positions[state.cop_position]
         robber_pos = positions[state.robber_position]
-        if state.cop_position == state.robber_position:
-            pygame.draw.circle(self.surface, colors.COP, cop_pos, 13)
-            pygame.draw.circle(self.surface, colors.ROBBER, cop_pos, 8)
-            return
-
-        pygame.draw.circle(self.surface, colors.COP, (cop_pos[0] - 12, cop_pos[1] - 18), 10)
+        for index, cop_position in enumerate(state.cop_positions, start=1):
+            cop_pos = positions[cop_position]
+            token_center = (cop_pos[0] - 12, cop_pos[1] - 18)
+            pygame.draw.circle(self.surface, colors.COP, token_center, 11)
+            label = self.small_font.render(str(index), True, (255, 255, 255))
+            self.surface.blit(label, label.get_rect(center=token_center))
         pygame.draw.circle(self.surface, colors.ROBBER, (robber_pos[0] + 12, robber_pos[1] - 18), 10)
 
     def _draw_placement_graph(
@@ -145,7 +144,7 @@ class Renderer:
         graph: GraphModel,
         layout: GraphLayout,
         selectable: set[int],
-        selected_cop_position: int | None,
+        selected_cop_positions: tuple[int, ...],
     ) -> None:
         positions = layout.positions
         for u, v in graph.edges():
@@ -166,9 +165,12 @@ class Renderer:
             label = self.small_font.render(str(vertex), True, colors.TEXT)
             self.surface.blit(label, label.get_rect(center=pos))
 
-        if selected_cop_position is not None:
+        for index, selected_cop_position in enumerate(selected_cop_positions, start=1):
             cop_pos = positions[selected_cop_position]
-            pygame.draw.circle(self.surface, colors.COP, (cop_pos[0] - 12, cop_pos[1] - 18), 10)
+            token_center = (cop_pos[0] - 12, cop_pos[1] - 18)
+            pygame.draw.circle(self.surface, colors.COP, token_center, 11)
+            label = self.small_font.render(str(index), True, (255, 255, 255))
+            self.surface.blit(label, label.get_rect(center=token_center))
 
     def _draw_panel(self, state: GameState, panel_rect: pygame.Rect, buttons: list[Button]) -> None:
         x = panel_rect.x + 22
@@ -183,7 +185,7 @@ class Renderer:
             f"round: {state.current_round} / {state.round_limit}",
             f"player: {state.current_player.label}",
             f"status: {state.status.label}",
-            f"cop: {state.cop_position}",
+            f"cops: {', '.join(str(vertex) for vertex in state.cop_positions)}",
             f"robber: {state.robber_position}",
         ]
         if state.status is GameStatus.COP_WIN:
@@ -215,7 +217,8 @@ class Renderer:
         panel_rect: pygame.Rect,
         buttons: list[Button],
         round_limit: int,
-        selected_cop_position: int | None,
+        selected_cop_positions: tuple[int, ...],
+        cop_count: int,
     ) -> None:
         x = panel_rect.x + 22
         y = panel_rect.y + 22
@@ -223,18 +226,23 @@ class Renderer:
         self.surface.blit(heading, (x, y))
         y += 42
 
-        prompt = "Cop: choose a vertex" if selected_cop_position is None else "Robber: choose a vertex"
+        if len(selected_cop_positions) < cop_count:
+            prompt = f"Cop {len(selected_cop_positions) + 1}: choose a vertex"
+        else:
+            prompt = "Robber: choose a vertex"
+        selected_label = ", ".join(str(vertex) for vertex in selected_cop_positions) or "-"
         lines = [
             f"n: {graph.n}",
             f"m: {graph.edge_count}",
             f"round limit: {round_limit}",
+            f"cops: {cop_count}",
             "mode: Player vs Player",
             prompt,
-            f"cop: {selected_cop_position if selected_cop_position is not None else '-'}",
+            f"cop starts: {selected_label}",
             "robber: -",
         ]
         for line in lines:
-            color = colors.COP if line.startswith("Cop:") else colors.TEXT
+            color = colors.COP if line.startswith("Cop ") else colors.TEXT
             if line.startswith("Robber:"):
                 color = colors.ROBBER
             text = self.font.render(line, True, color)

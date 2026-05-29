@@ -14,6 +14,7 @@ from cops_and_robbers.core.game_rules import GameRules
 from cops_and_robbers.core.game_state import GameState
 from cops_and_robbers.core.graph_generator import generate_connected_graph
 from cops_and_robbers.core.graph_model import GraphModel
+from cops_and_robbers.core.player import PlayerRole
 from cops_and_robbers.ui.graph_layout import GraphLayout
 from cops_and_robbers.ui.input_handler import InputHandler
 from cops_and_robbers.ui.renderer import Renderer
@@ -39,6 +40,8 @@ class AppScreen(Enum):
 class CopsAndRobbersApp:
     WIDTH = 1100
     HEIGHT = 750
+    MIN_COPS = 1
+    MAX_COPS = 3
 
     def __init__(
         self,
@@ -63,12 +66,13 @@ class CopsAndRobbersApp:
         self.setup_n = clamp(initial_n, MIN_VERTICES, MAX_VERTICES)
         self.setup_m = clamp(initial_m, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
         self.setup_rounds = clamp(initial_rounds, MIN_ROUNDS, MAX_ROUNDS)
+        self.setup_cop_count = 1
         self.setup_error: str | None = None
 
         self.graph: GraphModel | None = None
         self.state: GameState | None = None
         self.layout: GraphLayout | None = None
-        self.selected_cop_position: int | None = None
+        self.selected_cop_positions: list[int] = []
 
         self.board_rect = pygame.Rect(20, 76, 790, 650)
         self.panel_rect = pygame.Rect(830, 76, 250, 650)
@@ -139,7 +143,8 @@ class CopsAndRobbersApp:
                 self.panel_rect,
                 self._placement_buttons(),
                 self.setup_rounds,
-                self.selected_cop_position,
+                tuple(self.selected_cop_positions),
+                self.setup_cop_count,
             )
             return
 
@@ -157,7 +162,7 @@ class CopsAndRobbersApp:
 
     def _begin_placement_on_graph(self, graph: GraphModel) -> None:
         self.state = None
-        self.selected_cop_position = None
+        self.selected_cop_positions = []
         self.layout = GraphLayout(
             graph,
             self.board_rect.width,
@@ -167,16 +172,16 @@ class CopsAndRobbersApp:
         self.current_screen = AppScreen.PLACEMENT
         self.setup_error = None
 
-    def _start_on_selected_positions(self, cop_position: int, robber_position: int) -> None:
+    def _start_on_selected_positions(self, cop_positions: tuple[int, ...], robber_position: int) -> None:
         if self.graph is None:
             return
         self.state = GameState(
             graph=self.graph,
-            cop_position=cop_position,
+            cop_positions=cop_positions,
             robber_position=robber_position,
             round_limit=self.setup_rounds,
         )
-        self.selected_cop_position = None
+        self.selected_cop_positions = []
         self.current_screen = AppScreen.GAME
         self.setup_error = None
 
@@ -215,12 +220,14 @@ class CopsAndRobbersApp:
         vertex = self.input_handler.clicked_vertex(pos, self.board_rect, self.layout)
         if vertex is None:
             return
-        if self.selected_cop_position is None:
-            self.selected_cop_position = vertex
+        if len(self.selected_cop_positions) < self.setup_cop_count:
+            if vertex in self.selected_cop_positions:
+                return
+            self.selected_cop_positions.append(vertex)
             return
-        if vertex == self.selected_cop_position:
+        if vertex in self.selected_cop_positions:
             return
-        self._start_on_selected_positions(self.selected_cop_position, vertex)
+        self._start_on_selected_positions(tuple(self.selected_cop_positions), vertex)
 
     def _handle_game_click(self, pos: tuple[int, int]) -> None:
         action = self.input_handler.clicked_button(pos, self._game_buttons())
@@ -235,6 +242,8 @@ class CopsAndRobbersApp:
             return
 
         if self.state is None:
+            return
+        if self.state.cop_count > 1 and self.state.current_player is PlayerRole.COP:
             return
         vertex = self.input_handler.clicked_vertex(pos, self.board_rect, self.layout)
         if vertex is None or not self.rules.is_legal_move(self.state, vertex):
@@ -256,6 +265,10 @@ class CopsAndRobbersApp:
             self.setup_rounds = clamp(self.setup_rounds - 1, MIN_ROUNDS, MAX_ROUNDS)
         elif action == "rounds_plus":
             self.setup_rounds = clamp(self.setup_rounds + 1, MIN_ROUNDS, MAX_ROUNDS)
+        elif action == "cops_minus":
+            self.setup_cop_count = clamp(self.setup_cop_count - 1, self.MIN_COPS, self.MAX_COPS)
+        elif action == "cops_plus":
+            self.setup_cop_count = clamp(self.setup_cop_count + 1, self.MIN_COPS, self.MAX_COPS)
         elif action == "start":
             try:
                 self.start_new_game(self.setup_n, self.setup_m, self.setup_rounds)
@@ -277,10 +290,11 @@ class CopsAndRobbersApp:
                 max_edges_for_vertices(self.setup_n),
             ),
             Stepper("Rounds T:", self.setup_rounds, "rounds_minus", "rounds_plus", MIN_ROUNDS, MAX_ROUNDS),
+            Stepper("Cops:", self.setup_cop_count, "cops_minus", "cops_plus", self.MIN_COPS, self.MAX_COPS),
         ]
 
     def _setup_buttons(self) -> list[Button]:
-        return [Button(pygame.Rect(75, 290, 165, 36), "Start Game", "start")]
+        return [Button(pygame.Rect(75, 344, 165, 36), "Start Game", "start")]
 
     def _game_buttons(self) -> list[Button]:
         return [
@@ -297,7 +311,7 @@ class CopsAndRobbersApp:
         ]
 
     def _stepper_y(self, label: str) -> int:
-        lookup = {"Vertices n:": 135, "Edges m:": 189, "Rounds T:": 243}
+        lookup = {"Vertices n:": 135, "Edges m:": 189, "Rounds T:": 243, "Cops:": 297}
         return lookup[label]
 
     def _next_seed(self) -> int:

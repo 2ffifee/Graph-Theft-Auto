@@ -2,18 +2,18 @@
 
 A minimal playable desktop implementation of a Cops and Robbers game on finite graphs.
 
-The application uses Python, Pygame, and NetworkX. Version 1 supports one cop, one robber, random connected graphs, a round limit, click-based player-vs-player gameplay, and a clean code layout for later graph theory extensions.
+The application uses Python, Pygame, and NetworkX. Version 1 supports one to three cops, one robber, random connected graphs, a round limit, click-based player-vs-player gameplay, and a clean code layout for later graph theory extensions.
 
 ## Rules
 
 - The game is played on a connected simple undirected graph.
-- There is one cop and one robber.
+- There are one to three cops and one robber.
 - The cop moves first.
-- On each turn, the current player may move to an adjacent vertex or stay on the current vertex.
-- If the cop and robber occupy the same vertex after any move, the cop wins.
-- A full round is one cop move followed by one robber move.
+- On the cops' turn, each cop may move to an adjacent vertex or stay on the current vertex.
+- If any cop and the robber occupy the same vertex after any move, the cops win.
+- A full round is one joint cops' move followed by one robber move.
 - If the robber survives through the robber turn of the final round, the robber wins.
-- At the start of each game, the cop chooses a starting vertex first, then the robber chooses a different starting vertex.
+- At the start of each game, cops choose starting vertices first, then the robber chooses a different starting vertex.
 
 ## Setup on Linux
 
@@ -53,15 +53,18 @@ pytest
 
 ## Current Features
 
-- Setup screen with controls for vertices `n`, edges `m`, and round limit `T`.
+- Setup screen with controls for vertices `n`, edges `m`, round limit `T`, and number of cops.
+- Mode selection for Player vs Player, Player Cop vs Bot Robber, Bot Cop vs Player Robber, and Bot vs Bot.
+- Bot selection between Random and Greedy.
 - Validation for `3 <= n <= 30`, `n - 1 <= m <= n(n - 1)/2`, and `1 <= T <= 200`.
 - Connected random graph generation with exact edge count.
-- Manual starting-position selection: cop first, robber second.
+- Manual starting-position selection: cops first, robber second.
+- Staged multi-cop turns for player-vs-player games.
 - Clickable legal move highlights.
 - Restart current graph and choose new starting positions.
 - Generate a new graph with the same setup values.
 - Keyboard shortcuts: `R` restarts positions, `N` generates a new graph, `Esc` quits.
-- Basic random and greedy bot classes for future modes.
+- Random and greedy bots with multi-cop move support.
 
 ## Graph Generation
 
@@ -70,8 +73,6 @@ The random connected graph generator first creates a random spanning tree and th
 ## Planned Extensions
 
 - Named graph families such as paths, cycles, grids, ladders, trees, and complete graphs.
-- Multiple cops.
-- Player-vs-bot modes.
 - Minimax and optimal finite-horizon bots.
 - Cop-win detection and dismantling analysis.
 - Custom graph editor.

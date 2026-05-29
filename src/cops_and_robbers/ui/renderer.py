@@ -29,14 +29,14 @@ class Renderer:
         self,
         steppers: list[Stepper],
         buttons: list[Button],
-        message: str | None,
+        option_rows: list[tuple[str, str]],
         error: str | None,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
         self.surface.blit(title, (40, 40))
 
-        panel = pygame.Rect(40, 105, 410, 320)
+        panel = pygame.Rect(40, 105, 490, 430)
         pygame.draw.rect(self.surface, colors.PANEL_BG, panel, border_radius=8)
         pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel, width=1, border_radius=8)
 
@@ -45,15 +45,23 @@ class Renderer:
             stepper.draw(self.surface, self.font, 75, y)
             y += 54
 
+        option_y = 363
+        for label, value in option_rows:
+            label_surface = self.font.render(label, True, colors.TEXT)
+            self.surface.blit(label_surface, (75, option_y + 5))
+            value_rect = pygame.Rect(246, option_y, 205, 30)
+            pygame.draw.rect(self.surface, colors.VERTEX, value_rect, border_radius=4)
+            pygame.draw.rect(self.surface, colors.PANEL_BORDER, value_rect, width=1, border_radius=4)
+            value_surface = self.small_font.render(value, True, colors.TEXT)
+            self.surface.blit(value_surface, value_surface.get_rect(center=value_rect.center))
+            option_y += 48
+
         for button in buttons:
             button.draw(self.surface, self.font)
 
-        if message:
-            msg = self.small_font.render(message, True, colors.MUTED_TEXT)
-            self.surface.blit(msg, (75, 386))
         if error:
             err = self.small_font.render(error, True, colors.ERROR)
-            self.surface.blit(err, (75, 406))
+            self.surface.blit(err, (75, 512))
 
     def draw_game(
         self,
@@ -63,6 +71,11 @@ class Renderer:
         board_rect: pygame.Rect,
         panel_rect: pygame.Rect,
         buttons: list[Button],
+        legal_vertices: set[int] | None = None,
+        move_prompt: str | None = None,
+        staged_cop_destinations: tuple[int, ...] = (),
+        mode_label: str = "Player vs Player",
+        bot_label: str = "-",
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
@@ -73,9 +86,10 @@ class Renderer:
         pygame.draw.rect(self.surface, colors.PANEL_BG, panel_rect, border_radius=8)
         pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel_rect, width=1, border_radius=8)
 
-        legal_moves = set(rules.get_legal_moves(state))
-        self._draw_graph(state, layout, legal_moves)
-        self._draw_panel(state, panel_rect, buttons)
+        if legal_vertices is None:
+            legal_vertices = {move for move in rules.get_legal_moves(state) if isinstance(move, int)}
+        self._draw_graph(state, layout, legal_vertices, staged_cop_destinations)
+        self._draw_panel(state, panel_rect, buttons, move_prompt, staged_cop_destinations, mode_label, bot_label)
 
     def draw_placement(
         self,
@@ -87,6 +101,8 @@ class Renderer:
         round_limit: int,
         selected_cop_positions: tuple[int, ...],
         cop_count: int,
+        mode_label: str,
+        bot_label: str,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
@@ -100,13 +116,23 @@ class Renderer:
         selectable = set(graph.vertices())
         selectable.difference_update(selected_cop_positions)
         self._draw_placement_graph(graph, layout, selectable, selected_cop_positions)
-        self._draw_placement_panel(graph, panel_rect, buttons, round_limit, selected_cop_positions, cop_count)
+        self._draw_placement_panel(
+            graph,
+            panel_rect,
+            buttons,
+            round_limit,
+            selected_cop_positions,
+            cop_count,
+            mode_label,
+            bot_label,
+        )
 
     def _draw_graph(
         self,
         state: GameState,
         layout: GraphLayout,
         legal_moves: set[int],
+        staged_cop_destinations: tuple[int, ...] = (),
     ) -> None:
         positions = layout.positions
         for u, v in state.graph.edges():
@@ -127,13 +153,21 @@ class Renderer:
             label = self.small_font.render(str(vertex), True, colors.TEXT)
             self.surface.blit(label, label.get_rect(center=pos))
 
-        self._draw_tokens(state, positions)
+        self._draw_tokens(state, positions, staged_cop_destinations)
 
-    def _draw_tokens(self, state: GameState, positions: dict[int, tuple[float, float]]) -> None:
+    def _draw_tokens(
+        self,
+        state: GameState,
+        positions: dict[int, tuple[float, float]],
+        staged_cop_destinations: tuple[int, ...] = (),
+    ) -> None:
         robber_pos = positions[state.robber_position]
         for index, cop_position in enumerate(state.cop_positions, start=1):
-            cop_pos = positions[cop_position]
+            display_position = staged_cop_destinations[index - 1] if index <= len(staged_cop_destinations) else cop_position
+            cop_pos = positions[display_position]
             token_center = (cop_pos[0] - 12, cop_pos[1] - 18)
+            if index <= len(staged_cop_destinations):
+                pygame.draw.circle(self.surface, colors.LEGAL_MOVE_OUTLINE, token_center, 14)
             pygame.draw.circle(self.surface, colors.COP, token_center, 11)
             label = self.small_font.render(str(index), True, (255, 255, 255))
             self.surface.blit(label, label.get_rect(center=token_center))
@@ -172,7 +206,16 @@ class Renderer:
             label = self.small_font.render(str(index), True, (255, 255, 255))
             self.surface.blit(label, label.get_rect(center=token_center))
 
-    def _draw_panel(self, state: GameState, panel_rect: pygame.Rect, buttons: list[Button]) -> None:
+    def _draw_panel(
+        self,
+        state: GameState,
+        panel_rect: pygame.Rect,
+        buttons: list[Button],
+        move_prompt: str | None,
+        staged_cop_destinations: tuple[int, ...],
+        mode_label: str,
+        bot_label: str,
+    ) -> None:
         x = panel_rect.x + 22
         y = panel_rect.y + 22
         heading = self.heading_font.render("Status", True, colors.TEXT)
@@ -188,6 +231,13 @@ class Renderer:
             f"cops: {', '.join(str(vertex) for vertex in state.cop_positions)}",
             f"robber: {state.robber_position}",
         ]
+        if move_prompt is not None:
+            lines.append(move_prompt)
+        if staged_cop_destinations:
+            staged_label = ", ".join(str(vertex) for vertex in staged_cop_destinations)
+            lines.append(f"planned: {staged_label}")
+        lines.append(f"mode: {mode_label}")
+        lines.append(f"bot: {bot_label}")
         if state.status is GameStatus.COP_WIN:
             status_color = colors.COP
         elif state.status is GameStatus.ROBBER_WIN:
@@ -201,7 +251,7 @@ class Renderer:
             self.surface.blit(text, (x, y))
             y += 29
 
-        y += 12
+        y = self._hint_y(y + 12, buttons)
         hint_lines = ["Click highlighted vertices.", "R: restart   N: new graph"]
         for line in hint_lines:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
@@ -219,6 +269,8 @@ class Renderer:
         round_limit: int,
         selected_cop_positions: tuple[int, ...],
         cop_count: int,
+        mode_label: str,
+        bot_label: str,
     ) -> None:
         x = panel_rect.x + 22
         y = panel_rect.y + 22
@@ -236,7 +288,8 @@ class Renderer:
             f"m: {graph.edge_count}",
             f"round limit: {round_limit}",
             f"cops: {cop_count}",
-            "mode: Player vs Player",
+            f"mode: {mode_label}",
+            f"bot: {bot_label}",
             prompt,
             f"cop starts: {selected_label}",
             "robber: -",
@@ -249,7 +302,7 @@ class Renderer:
             self.surface.blit(text, (x, y))
             y += 29
 
-        y += 12
+        y = self._hint_y(y + 12, buttons)
         hint_lines = ["Click highlighted vertices.", "Cop and robber must differ."]
         for line in hint_lines:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
@@ -258,3 +311,9 @@ class Renderer:
 
         for button in buttons:
             button.draw(self.surface, self.font)
+
+    def _hint_y(self, preferred_y: int, buttons: list[Button]) -> int:
+        if not buttons:
+            return preferred_y
+        first_button_y = min(button.rect.y for button in buttons)
+        return min(preferred_y, first_button_y - 58)

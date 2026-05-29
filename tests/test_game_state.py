@@ -43,3 +43,30 @@ def test_round_does_not_increment_after_cop_move() -> None:
     rules.apply_move(state, 1)
 
     assert state.current_round == 1
+
+
+def test_state_accepts_multiple_cop_positions() -> None:
+    state = GameState(graph=path_graph(), cop_positions=(0, 2), robber_position=1, round_limit=10)
+
+    assert state.cop_positions == (0, 2)
+    assert state.cop_position == 0
+    assert state.cop_count == 2
+
+
+def test_cop_position_setter_preserves_other_cops() -> None:
+    state = GameState(graph=path_graph(), cop_positions=(0, 2), robber_position=1, round_limit=10)
+
+    state.cop_position = 1
+
+    assert state.cop_positions == (1, 2)
+
+
+def test_state_clone_preserves_multiple_cops_without_sharing_history() -> None:
+    state = GameState(graph=path_graph(), cop_positions=(0, 2), robber_position=1, round_limit=10)
+
+    clone = state.clone()
+    clone.cop_position = 1
+
+    assert state.cop_positions == (0, 2)
+    assert clone.cop_positions == (1, 2)
+    assert clone.move_history is not state.move_history

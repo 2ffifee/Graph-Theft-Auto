@@ -84,3 +84,15 @@ def test_capture_precedes_final_round_survival() -> None:
     rules.apply_move(state, 1)
 
     assert state.status is GameStatus.COP_WIN
+
+
+def test_any_cop_can_capture_robber() -> None:
+    state = GameState(
+        graph=path_graph(),
+        cop_positions=(0, 2),
+        robber_position=2,
+        round_limit=10,
+    )
+    rules = GameRules()
+
+    assert rules.check_capture(state)

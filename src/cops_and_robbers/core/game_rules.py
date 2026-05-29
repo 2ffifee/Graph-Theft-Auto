@@ -55,7 +55,7 @@ class GameRules:
         return state
 
     def check_capture(self, state: GameState) -> bool:
-        return state.cop_position == state.robber_position
+        return state.robber_position in state.cop_positions
 
     def check_robber_survived(self, state: GameState) -> bool:
         return state.status is GameStatus.ROBBER_WIN

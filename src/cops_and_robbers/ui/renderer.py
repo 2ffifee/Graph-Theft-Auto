@@ -36,7 +36,7 @@ class Renderer:
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
         self.surface.blit(title, (40, 40))
 
-        panel = pygame.Rect(40, 105, 490, 430)
+        panel = pygame.Rect(40, 105, 520, 500)
         pygame.draw.rect(self.surface, colors.PANEL_BG, panel, border_radius=8)
         pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel, width=1, border_radius=8)
 
@@ -45,7 +45,7 @@ class Renderer:
             stepper.draw(self.surface, self.font, 75, y)
             y += 54
 
-        option_y = 363
+        option_y = 417
         for label, value in option_rows:
             label_surface = self.font.render(label, True, colors.TEXT)
             self.surface.blit(label_surface, (75, option_y + 5))
@@ -61,7 +61,7 @@ class Renderer:
 
         if error:
             err = self.small_font.render(error, True, colors.ERROR)
-            self.surface.blit(err, (75, 512))
+            self.surface.blit(err, (75, 582))
 
     def draw_game(
         self,

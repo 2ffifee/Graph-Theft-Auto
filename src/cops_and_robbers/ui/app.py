@@ -12,6 +12,7 @@ import pygame
 
 from cops_and_robbers.bots.bot_base import BotBase
 from cops_and_robbers.bots.greedy_bot import GreedyBot
+from cops_and_robbers.bots.minimax_bot import MinimaxBot
 from cops_and_robbers.bots.random_bot import RandomBot
 from cops_and_robbers.core.game_rules import GameRules
 from cops_and_robbers.core.game_state import GameState, GameStatus
@@ -51,6 +52,7 @@ class GameMode(Enum):
 class BotKind(Enum):
     RANDOM = "Random"
     GREEDY = "Greedy"
+    MINIMAX = "Minimax"
 
 
 class CopsAndRobbersApp:
@@ -58,6 +60,8 @@ class CopsAndRobbersApp:
     HEIGHT = 750
     MIN_COPS = 1
     MAX_COPS = 3
+    MIN_BOT_DEPTH = 1
+    MAX_BOT_DEPTH = 5
 
     def __init__(
         self,
@@ -83,6 +87,7 @@ class CopsAndRobbersApp:
         self.setup_m = clamp(initial_m, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
         self.setup_rounds = clamp(initial_rounds, MIN_ROUNDS, MAX_ROUNDS)
         self.setup_cop_count = 1
+        self.setup_bot_depth = 3
         self.game_mode = GameMode.PLAYER_VS_PLAYER
         self.bot_kind = BotKind.GREEDY
         self.setup_error: str | None = None
@@ -172,7 +177,7 @@ class CopsAndRobbersApp:
                 tuple(self.selected_cop_positions),
                 self.setup_cop_count,
                 self.game_mode.value,
-                self.bot_kind.value,
+                self._bot_label(),
             )
             return
 
@@ -197,7 +202,7 @@ class CopsAndRobbersApp:
             move_prompt,
             tuple(self.staged_cop_destinations),
             self.game_mode.value,
-            self.bot_kind.value,
+            self._bot_label(),
         )
 
     def _begin_placement_on_graph(self, graph: GraphModel) -> None:
@@ -327,6 +332,10 @@ class CopsAndRobbersApp:
             self.setup_cop_count = clamp(self.setup_cop_count - 1, self.MIN_COPS, self.MAX_COPS)
         elif action == "cops_plus":
             self.setup_cop_count = clamp(self.setup_cop_count + 1, self.MIN_COPS, self.MAX_COPS)
+        elif action == "depth_minus":
+            self.setup_bot_depth = clamp(self.setup_bot_depth - 1, self.MIN_BOT_DEPTH, self.MAX_BOT_DEPTH)
+        elif action == "depth_plus":
+            self.setup_bot_depth = clamp(self.setup_bot_depth + 1, self.MIN_BOT_DEPTH, self.MAX_BOT_DEPTH)
         elif action == "mode_prev":
             self.game_mode = self._previous_enum_value(GameMode, self.game_mode)
         elif action == "mode_next":
@@ -357,21 +366,29 @@ class CopsAndRobbersApp:
             ),
             Stepper("Rounds T:", self.setup_rounds, "rounds_minus", "rounds_plus", MIN_ROUNDS, MAX_ROUNDS),
             Stepper("Cops:", self.setup_cop_count, "cops_minus", "cops_plus", self.MIN_COPS, self.MAX_COPS),
+            Stepper(
+                "Bot depth:",
+                self.setup_bot_depth,
+                "depth_minus",
+                "depth_plus",
+                self.MIN_BOT_DEPTH,
+                self.MAX_BOT_DEPTH,
+            ),
         ]
 
     def _setup_buttons(self) -> list[Button]:
         return [
-            Button(pygame.Rect(207, 359, 34, 30), "<", "mode_prev"),
-            Button(pygame.Rect(455, 359, 34, 30), ">", "mode_next"),
-            Button(pygame.Rect(207, 407, 34, 30), "<", "bot_prev"),
-            Button(pygame.Rect(455, 407, 34, 30), ">", "bot_next"),
-            Button(pygame.Rect(75, 470, 165, 36), "Start Game", "start"),
+            Button(pygame.Rect(207, 413, 34, 30), "<", "mode_prev"),
+            Button(pygame.Rect(455, 413, 34, 30), ">", "mode_next"),
+            Button(pygame.Rect(207, 461, 34, 30), "<", "bot_prev"),
+            Button(pygame.Rect(455, 461, 34, 30), ">", "bot_next"),
+            Button(pygame.Rect(75, 524, 165, 36), "Start Game", "start"),
         ]
 
     def _setup_option_rows(self) -> list[tuple[str, str]]:
         return [
             ("Mode:", self.game_mode.value),
-            ("Bot:", self.bot_kind.value),
+            ("Bot:", self._bot_label()),
         ]
 
     def _game_buttons(self) -> list[Button]:
@@ -395,7 +412,13 @@ class CopsAndRobbersApp:
         ]
 
     def _stepper_y(self, label: str) -> int:
-        lookup = {"Vertices n:": 135, "Edges m:": 189, "Rounds T:": 243, "Cops:": 297}
+        lookup = {
+            "Vertices n:": 135,
+            "Edges m:": 189,
+            "Rounds T:": 243,
+            "Cops:": 297,
+            "Bot depth:": 351,
+        }
         return lookup[label]
 
     def _next_seed(self) -> int:
@@ -443,6 +466,8 @@ class CopsAndRobbersApp:
         seed = self._next_seed()
         if self.bot_kind is BotKind.RANDOM:
             return RandomBot(role=role, seed=seed)
+        if self.bot_kind is BotKind.MINIMAX:
+            return MinimaxBot(role=role, depth=self.setup_bot_depth, seed=seed)
         return GreedyBot(role=role, seed=seed)
 
     def _apply_bot_turn_if_ready(self) -> None:
@@ -525,3 +550,8 @@ class CopsAndRobbersApp:
     def _previous_enum_value(self, enum_type: type[Enum], current: Enum) -> Enum:
         values = list(enum_type)
         return values[(values.index(current) - 1) % len(values)]
+
+    def _bot_label(self) -> str:
+        if self.bot_kind is BotKind.MINIMAX:
+            return f"Minimax d{self.setup_bot_depth}"
+        return self.bot_kind.value

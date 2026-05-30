@@ -155,3 +155,13 @@ def test_bot_turn_applies_legal_move() -> None:
 
     assert app.state.current_player is PlayerRole.ROBBER or app.state.status.name == "COP_WIN"
     assert app.state.move_history
+
+
+def test_minimax_bot_can_be_selected_and_rendered() -> None:
+    app = CopsAndRobbersApp(seed=123)
+    app.bot_kind = BotKind.MINIMAX
+    app.setup_bot_depth = 2
+
+    app.render()
+
+    assert app._bot_label() == "Minimax d2"

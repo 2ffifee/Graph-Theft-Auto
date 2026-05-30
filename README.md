@@ -55,7 +55,8 @@ pytest
 
 - Setup screen with controls for vertices `n`, edges `m`, round limit `T`, and number of cops.
 - Mode selection for Player vs Player, Player Cop vs Bot Robber, Bot Cop vs Player Robber, and Bot vs Bot.
-- Bot selection between Random and Greedy.
+- Bot selection between Random, Greedy, and Minimax.
+- Configurable minimax depth from 1 to 5 half-moves.
 - Validation for `3 <= n <= 30`, `n - 1 <= m <= n(n - 1)/2`, and `1 <= T <= 200`.
 - Connected random graph generation with exact edge count.
 - Manual starting-position selection: cops first, robber second.
@@ -64,7 +65,7 @@ pytest
 - Restart current graph and choose new starting positions.
 - Generate a new graph with the same setup values.
 - Keyboard shortcuts: `R` restarts positions, `N` generates a new graph, `Esc` quits.
-- Random and greedy bots with multi-cop move support.
+- Random, greedy, and alpha-beta minimax bots with multi-cop move support.
 
 ## Graph Generation
 
@@ -73,6 +74,6 @@ The random connected graph generator first creates a random spanning tree and th
 ## Planned Extensions
 
 - Named graph families such as paths, cycles, grids, ladders, trees, and complete graphs.
-- Minimax and optimal finite-horizon bots.
+- Optimal finite-horizon bots.
 - Cop-win detection and dismantling analysis.
 - Custom graph editor.

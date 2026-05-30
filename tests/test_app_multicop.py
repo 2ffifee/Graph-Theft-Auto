@@ -3,7 +3,7 @@ import os
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 from cops_and_robbers.core.player import PlayerRole
-from cops_and_robbers.ui.app import AppScreen, BotKind, CopsAndRobbersApp, GameMode
+from cops_and_robbers.ui.app import AppScreen, BotLevel, CopsAndRobbersApp, GameMode
 
 
 def click_vertex(app: CopsAndRobbersApp, vertex: int) -> None:
@@ -103,7 +103,7 @@ def test_bot_robber_starts_after_human_cop_placement() -> None:
     app = CopsAndRobbersApp(seed=123)
     app.setup_cop_count = 2
     app.game_mode = GameMode.PLAYER_COP_VS_BOT_ROBBER
-    app.bot_kind = BotKind.RANDOM
+    app.bot_level = BotLevel.RANDOM
     app.start_new_game(6, 7, 10)
 
     click_vertex(app, 0)
@@ -119,7 +119,7 @@ def test_bot_cop_auto_places_then_waits_for_human_robber() -> None:
     app = CopsAndRobbersApp(seed=123)
     app.setup_cop_count = 3
     app.game_mode = GameMode.BOT_COP_VS_PLAYER_ROBBER
-    app.bot_kind = BotKind.GREEDY
+    app.bot_level = BotLevel.EASY
     app.start_new_game(6, 7, 10)
 
     assert app.current_screen is AppScreen.PLACEMENT
@@ -140,7 +140,7 @@ def test_bot_turn_applies_legal_move() -> None:
     app = CopsAndRobbersApp(seed=123)
     app.setup_cop_count = 2
     app.game_mode = GameMode.BOT_COP_VS_PLAYER_ROBBER
-    app.bot_kind = BotKind.RANDOM
+    app.bot_level = BotLevel.RANDOM
     app.start_new_game(6, 7, 10)
     robber_candidate = next(
         vertex for vertex in app.graph.vertices()
@@ -157,11 +157,32 @@ def test_bot_turn_applies_legal_move() -> None:
     assert app.state.move_history
 
 
-def test_minimax_bot_can_be_selected_and_rendered() -> None:
+def test_expert_bot_level_resolves_to_minimax_and_rendered_label() -> None:
     app = CopsAndRobbersApp(seed=123)
-    app.bot_kind = BotKind.MINIMAX
-    app.setup_bot_depth = 2
+    app.bot_level = BotLevel.EXPERT
 
     app.render()
 
-    assert app._bot_label() == "Minimax d2"
+    assert app._bot_label() == "5 Expert"
+
+
+def test_bot_level_depth_adapts_to_cop_count() -> None:
+    app = CopsAndRobbersApp(seed=123)
+    app.bot_level = BotLevel.EXPERT
+    app.setup_cop_count = 1
+
+    assert app._bot_engine_for_state(None) == ("minimax", 5)
+
+    app.setup_cop_count = 3
+
+    assert app._bot_engine_for_state(None) == ("minimax", 3)
+
+
+def test_bot_level_depth_clamps_for_large_root_branching() -> None:
+    app = CopsAndRobbersApp(seed=123)
+    app.bot_level = BotLevel.EXPERT
+    app.setup_cop_count = 3
+    app.start_new_game(10, 45, 10)
+    app._start_on_selected_positions((0, 1, 2), 9)
+
+    assert app._bot_engine_for_state(app.state)[1] <= 2

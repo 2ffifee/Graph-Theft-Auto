@@ -55,8 +55,8 @@ pytest
 
 - Setup screen with controls for vertices `n`, edges `m`, round limit `T`, and number of cops.
 - Mode selection for Player vs Player, Player Cop vs Bot Robber, Bot Cop vs Player Robber, and Bot vs Bot.
-- Bot selection between Random, Greedy, and Minimax.
-- Configurable minimax depth from 1 to 5 half-moves.
+- Bot level selection from `1 Random` through `5 Expert`.
+- Higher bot levels use adaptive minimax depth based on graph complexity and number of cops.
 - Validation for `3 <= n <= 30`, `n - 1 <= m <= n(n - 1)/2`, and `1 <= T <= 200`.
 - Connected random graph generation with exact edge count.
 - Manual starting-position selection: cops first, robber second.

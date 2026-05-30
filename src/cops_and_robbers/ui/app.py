@@ -49,10 +49,12 @@ class GameMode(Enum):
     BOT_VS_BOT = "Bot vs Bot"
 
 
-class BotKind(Enum):
-    RANDOM = "Random"
-    GREEDY = "Greedy"
-    MINIMAX = "Minimax"
+class BotLevel(Enum):
+    RANDOM = "1 Random"
+    EASY = "2 Easy"
+    MEDIUM = "3 Medium"
+    HARD = "4 Hard"
+    EXPERT = "5 Expert"
 
 
 class CopsAndRobbersApp:
@@ -60,8 +62,6 @@ class CopsAndRobbersApp:
     HEIGHT = 750
     MIN_COPS = 1
     MAX_COPS = 3
-    MIN_BOT_DEPTH = 1
-    MAX_BOT_DEPTH = 5
 
     def __init__(
         self,
@@ -87,9 +87,8 @@ class CopsAndRobbersApp:
         self.setup_m = clamp(initial_m, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
         self.setup_rounds = clamp(initial_rounds, MIN_ROUNDS, MAX_ROUNDS)
         self.setup_cop_count = 1
-        self.setup_bot_depth = 3
         self.game_mode = GameMode.PLAYER_VS_PLAYER
-        self.bot_kind = BotKind.GREEDY
+        self.bot_level = BotLevel.EASY
         self.setup_error: str | None = None
 
         self.graph: GraphModel | None = None
@@ -332,18 +331,14 @@ class CopsAndRobbersApp:
             self.setup_cop_count = clamp(self.setup_cop_count - 1, self.MIN_COPS, self.MAX_COPS)
         elif action == "cops_plus":
             self.setup_cop_count = clamp(self.setup_cop_count + 1, self.MIN_COPS, self.MAX_COPS)
-        elif action == "depth_minus":
-            self.setup_bot_depth = clamp(self.setup_bot_depth - 1, self.MIN_BOT_DEPTH, self.MAX_BOT_DEPTH)
-        elif action == "depth_plus":
-            self.setup_bot_depth = clamp(self.setup_bot_depth + 1, self.MIN_BOT_DEPTH, self.MAX_BOT_DEPTH)
         elif action == "mode_prev":
             self.game_mode = self._previous_enum_value(GameMode, self.game_mode)
         elif action == "mode_next":
             self.game_mode = self._next_enum_value(GameMode, self.game_mode)
-        elif action == "bot_prev":
-            self.bot_kind = self._previous_enum_value(BotKind, self.bot_kind)
-        elif action == "bot_next":
-            self.bot_kind = self._next_enum_value(BotKind, self.bot_kind)
+        elif action == "level_prev":
+            self.bot_level = self._previous_enum_value(BotLevel, self.bot_level)
+        elif action == "level_next":
+            self.bot_level = self._next_enum_value(BotLevel, self.bot_level)
         elif action == "start":
             try:
                 self.start_new_game(self.setup_n, self.setup_m, self.setup_rounds)
@@ -366,29 +361,21 @@ class CopsAndRobbersApp:
             ),
             Stepper("Rounds T:", self.setup_rounds, "rounds_minus", "rounds_plus", MIN_ROUNDS, MAX_ROUNDS),
             Stepper("Cops:", self.setup_cop_count, "cops_minus", "cops_plus", self.MIN_COPS, self.MAX_COPS),
-            Stepper(
-                "Bot depth:",
-                self.setup_bot_depth,
-                "depth_minus",
-                "depth_plus",
-                self.MIN_BOT_DEPTH,
-                self.MAX_BOT_DEPTH,
-            ),
         ]
 
     def _setup_buttons(self) -> list[Button]:
         return [
-            Button(pygame.Rect(207, 413, 34, 30), "<", "mode_prev"),
-            Button(pygame.Rect(455, 413, 34, 30), ">", "mode_next"),
-            Button(pygame.Rect(207, 461, 34, 30), "<", "bot_prev"),
-            Button(pygame.Rect(455, 461, 34, 30), ">", "bot_next"),
-            Button(pygame.Rect(75, 524, 165, 36), "Start Game", "start"),
+            Button(pygame.Rect(207, 359, 34, 30), "<", "mode_prev"),
+            Button(pygame.Rect(455, 359, 34, 30), ">", "mode_next"),
+            Button(pygame.Rect(207, 407, 34, 30), "<", "level_prev"),
+            Button(pygame.Rect(455, 407, 34, 30), ">", "level_next"),
+            Button(pygame.Rect(75, 470, 165, 36), "Start Game", "start"),
         ]
 
     def _setup_option_rows(self) -> list[tuple[str, str]]:
         return [
             ("Mode:", self.game_mode.value),
-            ("Bot:", self._bot_label()),
+            ("Bot level:", self.bot_level.value),
         ]
 
     def _game_buttons(self) -> list[Button]:
@@ -417,7 +404,6 @@ class CopsAndRobbersApp:
             "Edges m:": 189,
             "Rounds T:": 243,
             "Cops:": 297,
-            "Bot depth:": 351,
         }
         return lookup[label]
 
@@ -464,10 +450,11 @@ class CopsAndRobbersApp:
 
     def _make_bot(self, role: PlayerRole) -> BotBase:
         seed = self._next_seed()
-        if self.bot_kind is BotKind.RANDOM:
+        engine, depth = self._bot_engine_for_state(self.state)
+        if engine == "random":
             return RandomBot(role=role, seed=seed)
-        if self.bot_kind is BotKind.MINIMAX:
-            return MinimaxBot(role=role, depth=self.setup_bot_depth, seed=seed)
+        if engine == "minimax":
+            return MinimaxBot(role=role, depth=depth, seed=seed)
         return GreedyBot(role=role, seed=seed)
 
     def _apply_bot_turn_if_ready(self) -> None:
@@ -512,7 +499,7 @@ class CopsAndRobbersApp:
             vertex for vertex in self.graph.vertices()
             if vertex not in self.selected_cop_positions
         ]
-        if self.bot_kind is BotKind.RANDOM:
+        if self.bot_level is BotLevel.RANDOM:
             return self.rng.choice(candidates)
         scores = {
             vertex: (
@@ -531,7 +518,7 @@ class CopsAndRobbersApp:
             vertex for vertex in self.graph.vertices()
             if vertex not in self.selected_cop_positions
         ]
-        if self.bot_kind is BotKind.RANDOM:
+        if self.bot_level is BotLevel.RANDOM:
             return self.rng.choice(candidates)
         scores = {
             vertex: (
@@ -552,6 +539,39 @@ class CopsAndRobbersApp:
         return values[(values.index(current) - 1) % len(values)]
 
     def _bot_label(self) -> str:
-        if self.bot_kind is BotKind.MINIMAX:
-            return f"Minimax d{self.setup_bot_depth}"
-        return self.bot_kind.value
+        if self.state is None:
+            return self.bot_level.value
+        engine, depth = self._bot_engine_for_state(self.state)
+        if engine == "minimax":
+            return f"{self.bot_level.value} ({engine} d{depth})"
+        return f"{self.bot_level.value} ({engine})"
+
+    def _bot_engine_for_state(self, state: GameState | None) -> tuple[str, int]:
+        if self.bot_level is BotLevel.RANDOM:
+            return ("random", 1)
+        if self.bot_level is BotLevel.EASY:
+            return ("greedy", 1)
+
+        cop_count = self.setup_cop_count if state is None else state.cop_count
+        root_branching = self._estimate_root_branching(state)
+
+        if self.bot_level is BotLevel.MEDIUM:
+            depth_by_cops = {1: 3, 2: 2, 3: 2}
+        elif self.bot_level is BotLevel.HARD:
+            depth_by_cops = {1: 4, 2: 3, 3: 2}
+        else:
+            depth_by_cops = {1: 5, 2: 3, 3: 3}
+
+        depth = depth_by_cops.get(cop_count, 2)
+        if root_branching > 350:
+            depth = min(depth, 1)
+        elif root_branching > 150:
+            depth = min(depth, 2)
+        return ("minimax", depth)
+
+    def _estimate_root_branching(self, state: GameState | None) -> int:
+        if state is None or state.status is not GameStatus.PLAYING:
+            return 1
+        if state.current_player is PlayerRole.COP and state.cop_count > 1:
+            return len(self.rules.get_legal_cop_moves(state))
+        return len(self.rules.get_legal_moves(state))

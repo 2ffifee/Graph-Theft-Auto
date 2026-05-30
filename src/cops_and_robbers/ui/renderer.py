@@ -36,7 +36,7 @@ class Renderer:
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
         self.surface.blit(title, (40, 40))
 
-        panel = pygame.Rect(40, 105, 520, 500)
+        panel = pygame.Rect(40, 105, 490, 430)
         pygame.draw.rect(self.surface, colors.PANEL_BG, panel, border_radius=8)
         pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel, width=1, border_radius=8)
 
@@ -45,7 +45,7 @@ class Renderer:
             stepper.draw(self.surface, self.font, 75, y)
             y += 54
 
-        option_y = 417
+        option_y = 363
         for label, value in option_rows:
             label_surface = self.font.render(label, True, colors.TEXT)
             self.surface.blit(label_surface, (75, option_y + 5))
@@ -61,7 +61,7 @@ class Renderer:
 
         if error:
             err = self.small_font.render(error, True, colors.ERROR)
-            self.surface.blit(err, (75, 582))
+            self.surface.blit(err, (75, 512))
 
     def draw_game(
         self,
@@ -168,10 +168,8 @@ class Renderer:
             token_center = (cop_pos[0] - 12, cop_pos[1] - 18)
             if index <= len(staged_cop_destinations):
                 pygame.draw.circle(self.surface, colors.LEGAL_MOVE_OUTLINE, token_center, 14)
-            pygame.draw.circle(self.surface, colors.COP, token_center, 11)
-            label = self.small_font.render(str(index), True, (255, 255, 255))
-            self.surface.blit(label, label.get_rect(center=token_center))
-        pygame.draw.circle(self.surface, colors.ROBBER, (robber_pos[0] + 12, robber_pos[1] - 18), 10)
+            self._draw_cop_car(token_center, index=index, scale=0.78)
+        self._draw_robber_marker((robber_pos[0] + 14, robber_pos[1] - 18), scale=0.92)
 
     def _draw_placement_graph(
         self,
@@ -202,9 +200,97 @@ class Renderer:
         for index, selected_cop_position in enumerate(selected_cop_positions, start=1):
             cop_pos = positions[selected_cop_position]
             token_center = (cop_pos[0] - 12, cop_pos[1] - 18)
-            pygame.draw.circle(self.surface, colors.COP, token_center, 11)
-            label = self.small_font.render(str(index), True, (255, 255, 255))
-            self.surface.blit(label, label.get_rect(center=token_center))
+            self._draw_cop_car(token_center, index=index, scale=0.78)
+
+    def _draw_cop_car(self, center: tuple[float, float], index: int, scale: float = 1.0) -> None:
+        x, y = center
+        body = pygame.Rect(0, 0, int(34 * scale), int(18 * scale))
+        body.center = (round(x), round(y))
+        roof = pygame.Rect(0, 0, int(17 * scale), int(10 * scale))
+        roof.center = (round(x), round(y - 7 * scale))
+        wheel_radius = max(2, round(3 * scale))
+
+        pygame.draw.rect(self.surface, (245, 248, 255), body, border_radius=round(4 * scale))
+        pygame.draw.rect(
+            self.surface,
+            colors.COP,
+            body,
+            width=max(1, round(2 * scale)),
+            border_radius=round(4 * scale),
+        )
+        pygame.draw.rect(self.surface, (180, 220, 255), roof, border_radius=round(3 * scale))
+        pygame.draw.rect(self.surface, colors.VERTEX_OUTLINE, body, width=1, border_radius=round(4 * scale))
+        pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.left + round(8 * scale), body.bottom), wheel_radius)
+        pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.right - round(8 * scale), body.bottom), wheel_radius)
+        pygame.draw.circle(self.surface, (230, 50, 50), (round(x - 4 * scale), roof.top), max(2, round(2 * scale)))
+        pygame.draw.circle(self.surface, colors.COP, (round(x + 4 * scale), roof.top), max(2, round(2 * scale)))
+
+        badge_radius = max(5, round(7 * scale))
+        badge_center = (body.right - badge_radius + 1, body.top + badge_radius - 1)
+        pygame.draw.circle(self.surface, colors.COP, badge_center, badge_radius)
+        pygame.draw.circle(self.surface, (255, 255, 255), badge_center, badge_radius, width=1)
+        label = self.small_font.render(str(index), True, (255, 255, 255))
+        self.surface.blit(label, label.get_rect(center=badge_center))
+
+    def _draw_robber_marker(self, center: tuple[float, float], scale: float = 1.0) -> None:
+        x, y = center
+        self._draw_stolen_car((x + 8 * scale, y + 10 * scale), scale * 0.72)
+        self._draw_black_clad_robber((x - 8 * scale, y - 2 * scale), scale)
+
+    def _draw_stolen_car(self, center: tuple[float, float], scale: float = 1.0) -> None:
+        x, y = center
+        body = pygame.Rect(0, 0, int(32 * scale), int(15 * scale))
+        body.center = (round(x), round(y))
+        roof = pygame.Rect(0, 0, int(15 * scale), int(8 * scale))
+        roof.center = (round(x + 2 * scale), round(y - 6 * scale))
+        wheel_radius = max(2, round(3 * scale))
+
+        pygame.draw.rect(self.surface, (32, 34, 38), body, border_radius=round(4 * scale))
+        pygame.draw.rect(self.surface, (75, 78, 86), roof, border_radius=round(3 * scale))
+        pygame.draw.rect(self.surface, (12, 12, 14), body, width=1, border_radius=round(4 * scale))
+        pygame.draw.circle(self.surface, (235, 215, 80), (body.left + round(3 * scale), body.centery), max(1, round(1.5 * scale)))
+        pygame.draw.circle(self.surface, colors.ROBBER, (body.right - round(3 * scale), body.centery), max(1, round(1.5 * scale)))
+        pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.left + round(8 * scale), body.bottom), wheel_radius)
+        pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.right - round(8 * scale), body.bottom), wheel_radius)
+
+    def _draw_black_clad_robber(self, center: tuple[float, float], scale: float = 1.0) -> None:
+        x, y = center
+        outline = (245, 245, 245)
+        black = (8, 8, 10)
+        dark = (20, 20, 24)
+        gray = (52, 52, 58)
+        head_radius = max(5, round(7 * scale))
+        head_center = (round(x), round(y - 13 * scale))
+        torso = pygame.Rect(0, 0, max(8, int(13 * scale)), max(13, int(18 * scale)))
+        torso.center = (round(x), round(y + 4 * scale))
+        arm_y = round(y + 2 * scale)
+        leg_top = round(y + 13 * scale)
+
+        pygame.draw.circle(self.surface, outline, head_center, head_radius + 1)
+        pygame.draw.rect(self.surface, outline, torso.inflate(2, 2), border_radius=round(4 * scale))
+        for start, end in [
+            ((round(x - 7 * scale), arm_y), (round(x - 15 * scale), round(y + 11 * scale))),
+            ((round(x + 7 * scale), arm_y), (round(x + 13 * scale), round(y + 9 * scale))),
+            ((round(x - 3 * scale), leg_top), (round(x - 9 * scale), round(y + 24 * scale))),
+            ((round(x + 3 * scale), leg_top), (round(x + 9 * scale), round(y + 24 * scale))),
+        ]:
+            pygame.draw.line(self.surface, outline, start, end, width=max(2, round(4 * scale)))
+
+        pygame.draw.circle(self.surface, black, head_center, head_radius)
+        pygame.draw.rect(self.surface, dark, torso, border_radius=round(4 * scale))
+        for start, end in [
+            ((round(x - 7 * scale), arm_y), (round(x - 15 * scale), round(y + 11 * scale))),
+            ((round(x + 7 * scale), arm_y), (round(x + 13 * scale), round(y + 9 * scale))),
+            ((round(x - 3 * scale), leg_top), (round(x - 9 * scale), round(y + 24 * scale))),
+            ((round(x + 3 * scale), leg_top), (round(x + 9 * scale), round(y + 24 * scale))),
+        ]:
+            pygame.draw.line(self.surface, black, start, end, width=max(1, round(2.5 * scale)))
+
+        eye_y = head_center[1] - round(1 * scale)
+        eye_band = pygame.Rect(round(x - 6 * scale), eye_y - 2, max(7, round(12 * scale)), max(3, round(4 * scale)))
+        pygame.draw.rect(self.surface, gray, eye_band, border_radius=round(2 * scale))
+        pygame.draw.circle(self.surface, (245, 245, 245), (head_center[0] - round(2 * scale), eye_y), max(1, round(1.2 * scale)))
+        pygame.draw.circle(self.surface, (245, 245, 245), (head_center[0] + round(2 * scale), eye_y), max(1, round(1.2 * scale)))
 
     def _draw_panel(
         self,

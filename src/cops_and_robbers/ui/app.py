@@ -60,6 +60,8 @@ class BotLevel(Enum):
 class CopsAndRobbersApp:
     WIDTH = 1100
     HEIGHT = 750
+    SETUP_PANEL_WIDTH = 490
+    SETUP_PANEL_HEIGHT = 430
     MIN_COPS = 1
     MAX_COPS = 3
 
@@ -73,7 +75,8 @@ class CopsAndRobbersApp:
     ):
         pygame.init()
         pygame.display.set_caption("Graph Theft Auto")
-        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.RESIZABLE)
+        self.window_size = self.screen.get_size()
         self.clock = pygame.time.Clock()
         self.renderer = Renderer(self.screen)
         self.input_handler = InputHandler()
@@ -141,25 +144,39 @@ class CopsAndRobbersApp:
             self.running = False
             return
 
+        if event.type == pygame.VIDEORESIZE:
+            # Do not recreate the display surface here; on Wayland/Hyprland that can
+            # trigger a configure/resize feedback loop.
+            self.window_size = event.size
+            return
+
         if event.type == pygame.KEYDOWN:
             self._handle_key(event.key)
             return
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            logical_pos = self._window_to_logical(event.pos)
+            if logical_pos is None:
+                return
             if self.current_screen is AppScreen.SETUP:
-                self._handle_setup_click(event.pos)
+                self._handle_setup_click(logical_pos)
             elif self.current_screen is AppScreen.PLACEMENT:
-                self._handle_placement_click(event.pos)
+                self._handle_placement_click(logical_pos)
             else:
-                self._handle_game_click(event.pos)
+                self._handle_game_click(logical_pos)
 
     def render(self) -> None:
+        scale, offset_x, offset_y, _ = self._scale_metrics()
+        self.renderer.set_viewport(scale, (offset_x, offset_y))
+        mouse_pos = self._window_to_logical(pygame.mouse.get_pos())
         if self.current_screen is AppScreen.SETUP:
             self.renderer.draw_setup(
+                self._setup_panel_rect(),
                 self._setup_steppers(),
                 self._setup_buttons(),
                 self._setup_option_rows(),
                 self.setup_error,
+                mouse_pos,
             )
             return
 
@@ -177,6 +194,7 @@ class CopsAndRobbersApp:
                 self.setup_cop_count,
                 self.game_mode.value,
                 self._bot_label(),
+                mouse_pos,
             )
             return
 
@@ -202,6 +220,7 @@ class CopsAndRobbersApp:
             tuple(self.staged_cop_destinations),
             self.game_mode.value,
             self._bot_label(),
+            mouse_pos,
         )
 
     def _begin_placement_on_graph(self, graph: GraphModel) -> None:
@@ -245,8 +264,12 @@ class CopsAndRobbersApp:
         buttons = self._setup_buttons()
         action = self.input_handler.clicked_button(pos, buttons)
         if action is None:
+            stepper_x = self._setup_panel_rect().x + 35
             for stepper in self._setup_steppers():
-                action = self.input_handler.clicked_button(pos, list(stepper.make_buttons(75, self._stepper_y(stepper.label))))
+                action = self.input_handler.clicked_button(
+                    pos,
+                    list(stepper.make_buttons(stepper_x, self._stepper_y(stepper.label))),
+                )
                 if action is not None:
                     break
         if action is None:
@@ -364,12 +387,13 @@ class CopsAndRobbersApp:
         ]
 
     def _setup_buttons(self) -> list[Button]:
+        panel = self._setup_panel_rect()
         return [
-            Button(pygame.Rect(207, 359, 34, 30), "<", "mode_prev"),
-            Button(pygame.Rect(455, 359, 34, 30), ">", "mode_next"),
-            Button(pygame.Rect(207, 407, 34, 30), "<", "level_prev"),
-            Button(pygame.Rect(455, 407, 34, 30), ">", "level_next"),
-            Button(pygame.Rect(75, 470, 165, 36), "Start Game", "start"),
+            Button(pygame.Rect(panel.x + 167, panel.y + 254, 34, 30), "<", "mode_prev"),
+            Button(pygame.Rect(panel.x + 415, panel.y + 254, 34, 30), ">", "mode_next"),
+            Button(pygame.Rect(panel.x + 167, panel.y + 302, 34, 30), "<", "level_prev"),
+            Button(pygame.Rect(panel.x + 415, panel.y + 302, 34, 30), ">", "level_next"),
+            Button(pygame.Rect(panel.centerx - 82, panel.y + 365, 165, 36), "Start Game", "start"),
         ]
 
     def _setup_option_rows(self) -> list[tuple[str, str]]:
@@ -399,13 +423,51 @@ class CopsAndRobbersApp:
         ]
 
     def _stepper_y(self, label: str) -> int:
+        panel = self._setup_panel_rect()
         lookup = {
-            "Vertices n:": 135,
-            "Edges m:": 189,
-            "Rounds T:": 243,
-            "Cops:": 297,
+            "Vertices n:": panel.y + 30,
+            "Edges m:": panel.y + 84,
+            "Rounds T:": panel.y + 138,
+            "Cops:": panel.y + 192,
         }
         return lookup[label]
+
+    def _setup_panel_rect(self) -> pygame.Rect:
+        return pygame.Rect(
+            (self.WIDTH - self.SETUP_PANEL_WIDTH) // 2,
+            (self.HEIGHT - self.SETUP_PANEL_HEIGHT) // 2,
+            self.SETUP_PANEL_WIDTH,
+            self.SETUP_PANEL_HEIGHT,
+        )
+
+    def _scale_metrics(self) -> tuple[float, int, int, tuple[int, int]]:
+        raw_width, raw_height = self.screen.get_size()
+        window_width = max(1, raw_width)
+        window_height = max(1, raw_height)
+        self.window_size = (window_width, window_height)
+        scale = max(0.01, min(window_width / self.WIDTH, window_height / self.HEIGHT))
+        scaled_size = (
+            max(1, round(self.WIDTH * scale)),
+            max(1, round(self.HEIGHT * scale)),
+        )
+        offset_x = (window_width - scaled_size[0]) // 2
+        offset_y = (window_height - scaled_size[1]) // 2
+        return scale, offset_x, offset_y, scaled_size
+
+    def _window_to_logical(self, pos: tuple[int, int]) -> tuple[int, int] | None:
+        scale, offset_x, offset_y, scaled_size = self._scale_metrics()
+        x, y = pos
+        if not (
+            offset_x <= x < offset_x + scaled_size[0]
+            and offset_y <= y < offset_y + scaled_size[1]
+        ):
+            return None
+        logical_x = round((x - offset_x) / scale)
+        logical_y = round((y - offset_y) / scale)
+        return (
+            clamp(logical_x, 0, self.WIDTH - 1),
+            clamp(logical_y, 0, self.HEIGHT - 1),
+        )
 
     def _next_seed(self) -> int:
         return self.rng.randrange(0, 2**32)

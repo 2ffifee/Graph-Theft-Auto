@@ -25,12 +25,15 @@ from cops_and_robbers.ui.input_handler import InputHandler
 from cops_and_robbers.ui.renderer import Renderer
 from cops_and_robbers.ui.widgets import Button, Stepper
 from cops_and_robbers.utils.validation import (
+    GRAPH_TYPE_ANY,
+    GRAPH_TYPE_PLANAR,
+    GRAPH_TYPE_TREE,
     MAX_ROUNDS,
     MAX_VERTICES,
     MIN_ROUNDS,
     MIN_VERTICES,
     clamp,
-    max_edges_for_vertices,
+    edge_bounds_for_graph_type,
     validate_edge_count,
     validate_round_limit,
 )
@@ -57,11 +60,25 @@ class BotLevel(Enum):
     EXPERT = "5 Expert"
 
 
+class GraphType(Enum):
+    ANY = ("Any", GRAPH_TYPE_ANY)
+    TREE = ("Tree", GRAPH_TYPE_TREE)
+    PLANAR = ("Planar", GRAPH_TYPE_PLANAR)
+
+    @property
+    def label(self) -> str:
+        return self.value[0]
+
+    @property
+    def validation_key(self) -> str:
+        return self.value[1]
+
+
 class CopsAndRobbersApp:
     WIDTH = 1100
     HEIGHT = 750
     SETUP_PANEL_WIDTH = 490
-    SETUP_PANEL_HEIGHT = 430
+    SETUP_PANEL_HEIGHT = 500
     MIN_COPS = 1
     MAX_COPS = 3
 
@@ -86,8 +103,9 @@ class CopsAndRobbersApp:
 
         self.current_screen = AppScreen.SETUP
         self.running = True
+        self.graph_type = GraphType.ANY
         self.setup_n = clamp(initial_n, MIN_VERTICES, MAX_VERTICES)
-        self.setup_m = clamp(initial_m, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
+        self.setup_m = clamp(initial_m, *self._edge_bounds_for_setup())
         self.setup_rounds = clamp(initial_rounds, MIN_ROUNDS, MAX_ROUNDS)
         self.setup_cop_count = 1
         self.game_mode = GameMode.PLAYER_VS_PLAYER
@@ -123,12 +141,17 @@ class CopsAndRobbersApp:
             self._apply_bot_turn_if_ready()
 
     def start_new_game(self, n: int, m: int, round_limit: int) -> None:
-        validate_edge_count(n, m)
+        validate_edge_count(n, m, self.graph_type.validation_key)
         validate_round_limit(round_limit)
         self.setup_n = n
         self.setup_m = m
         self.setup_rounds = round_limit
-        self.graph = generate_connected_graph(n, m, seed=self._next_seed())
+        self.graph = generate_connected_graph(
+            n,
+            m,
+            seed=self._next_seed(),
+            graph_type=self.graph_type.validation_key,
+        )
         self._begin_placement_on_graph(self.graph)
 
     def restart_current_graph(self) -> None:
@@ -343,9 +366,9 @@ class CopsAndRobbersApp:
             self.setup_n = clamp(self.setup_n + 1, MIN_VERTICES, MAX_VERTICES)
             self._clamp_edges_for_current_n()
         elif action == "m_minus":
-            self.setup_m = clamp(self.setup_m - 1, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
+            self.setup_m = clamp(self.setup_m - 1, *self._edge_bounds_for_setup())
         elif action == "m_plus":
-            self.setup_m = clamp(self.setup_m + 1, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
+            self.setup_m = clamp(self.setup_m + 1, *self._edge_bounds_for_setup())
         elif action == "rounds_minus":
             self.setup_rounds = clamp(self.setup_rounds - 1, MIN_ROUNDS, MAX_ROUNDS)
         elif action == "rounds_plus":
@@ -354,6 +377,12 @@ class CopsAndRobbersApp:
             self.setup_cop_count = clamp(self.setup_cop_count - 1, self.MIN_COPS, self.MAX_COPS)
         elif action == "cops_plus":
             self.setup_cop_count = clamp(self.setup_cop_count + 1, self.MIN_COPS, self.MAX_COPS)
+        elif action == "type_prev":
+            self.graph_type = self._previous_enum_value(GraphType, self.graph_type)
+            self._clamp_edges_for_current_n()
+        elif action == "type_next":
+            self.graph_type = self._next_enum_value(GraphType, self.graph_type)
+            self._clamp_edges_for_current_n()
         elif action == "mode_prev":
             self.game_mode = self._previous_enum_value(GameMode, self.game_mode)
         elif action == "mode_next":
@@ -369,7 +398,8 @@ class CopsAndRobbersApp:
                 self.setup_error = str(exc)
 
     def _clamp_edges_for_current_n(self) -> None:
-        self.setup_m = clamp(self.setup_m, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
+        min_edges, max_edges = self._edge_bounds_for_setup()
+        self.setup_m = clamp(self.setup_m, min_edges, max_edges)
 
     def _setup_steppers(self) -> list[Stepper]:
         return [
@@ -379,8 +409,7 @@ class CopsAndRobbersApp:
                 self.setup_m,
                 "m_minus",
                 "m_plus",
-                self.setup_n - 1,
-                max_edges_for_vertices(self.setup_n),
+                *self._edge_bounds_for_setup(),
             ),
             Stepper("Rounds T:", self.setup_rounds, "rounds_minus", "rounds_plus", MIN_ROUNDS, MAX_ROUNDS),
             Stepper("Cops:", self.setup_cop_count, "cops_minus", "cops_plus", self.MIN_COPS, self.MAX_COPS),
@@ -391,14 +420,17 @@ class CopsAndRobbersApp:
         return [
             Button(pygame.Rect(panel.x + 167, panel.y + 254, 34, 30), "<", "mode_prev"),
             Button(pygame.Rect(panel.x + 415, panel.y + 254, 34, 30), ">", "mode_next"),
-            Button(pygame.Rect(panel.x + 167, panel.y + 302, 34, 30), "<", "level_prev"),
-            Button(pygame.Rect(panel.x + 415, panel.y + 302, 34, 30), ">", "level_next"),
-            Button(pygame.Rect(panel.centerx - 82, panel.y + 365, 165, 36), "Start Game", "start"),
+            Button(pygame.Rect(panel.x + 167, panel.y + 302, 34, 30), "<", "type_prev"),
+            Button(pygame.Rect(panel.x + 415, panel.y + 302, 34, 30), ">", "type_next"),
+            Button(pygame.Rect(panel.x + 167, panel.y + 350, 34, 30), "<", "level_prev"),
+            Button(pygame.Rect(panel.x + 415, panel.y + 350, 34, 30), ">", "level_next"),
+            Button(pygame.Rect(panel.centerx - 82, panel.y + 430, 165, 36), "Start Game", "start"),
         ]
 
     def _setup_option_rows(self) -> list[tuple[str, str]]:
         return [
             ("Mode:", self.game_mode.value),
+            ("Graph type:", self.graph_type.label),
             ("Bot level:", self.bot_level.value),
         ]
 
@@ -431,6 +463,9 @@ class CopsAndRobbersApp:
             "Cops:": panel.y + 192,
         }
         return lookup[label]
+
+    def _edge_bounds_for_setup(self) -> tuple[int, int]:
+        return edge_bounds_for_graph_type(self.setup_n, self.graph_type.validation_key)
 
     def _setup_panel_rect(self) -> pygame.Rect:
         return pygame.Rect(

@@ -145,6 +145,7 @@ class Renderer:
         staged_cop_destinations: tuple[int, ...] = (),
         mode_label: str = "Player vs Player",
         bot_label: str = "-",
+        graph_zoom: float = 1.0,
         mouse_pos: tuple[int, int] | None = None,
     ) -> None:
         self.clear()
@@ -172,7 +173,7 @@ class Renderer:
 
         if legal_vertices is None:
             legal_vertices = {move for move in rules.get_legal_moves(state) if isinstance(move, int)}
-        self._draw_graph(state, layout, legal_vertices, staged_cop_destinations)
+        self._draw_clipped_to_board(scaled_board, self._draw_graph, state, layout, legal_vertices, staged_cop_destinations)
         self._draw_panel(
             state,
             panel_rect,
@@ -181,6 +182,7 @@ class Renderer:
             staged_cop_destinations,
             mode_label,
             bot_label,
+            graph_zoom,
             mouse_pos,
         )
 
@@ -196,6 +198,7 @@ class Renderer:
         cop_count: int,
         mode_label: str,
         bot_label: str,
+        graph_zoom: float = 1.0,
         mouse_pos: tuple[int, int] | None = None,
     ) -> None:
         self.clear()
@@ -223,7 +226,14 @@ class Renderer:
 
         selectable = set(graph.vertices())
         selectable.difference_update(selected_cop_positions)
-        self._draw_placement_graph(graph, layout, selectable, selected_cop_positions)
+        self._draw_clipped_to_board(
+            scaled_board,
+            self._draw_placement_graph,
+            graph,
+            layout,
+            selectable,
+            selected_cop_positions,
+        )
         self._draw_placement_panel(
             graph,
             panel_rect,
@@ -233,8 +243,17 @@ class Renderer:
             cop_count,
             mode_label,
             bot_label,
+            graph_zoom,
             mouse_pos,
         )
+
+    def _draw_clipped_to_board(self, board_rect: pygame.Rect, draw_func, *args) -> None:
+        previous_clip = self.surface.get_clip()
+        self.surface.set_clip(board_rect)
+        try:
+            draw_func(*args)
+        finally:
+            self.surface.set_clip(previous_clip)
 
     def _draw_graph(
         self,
@@ -452,6 +471,7 @@ class Renderer:
         staged_cop_destinations: tuple[int, ...],
         mode_label: str,
         bot_label: str,
+        graph_zoom: float,
         mouse_pos: tuple[int, int] | None,
     ) -> None:
         x = panel_rect.x + 22
@@ -476,6 +496,7 @@ class Renderer:
             lines.append(f"planned: {staged_label}")
         lines.append(f"mode: {mode_label}")
         lines.append(f"bot: {bot_label}")
+        lines.append(f"zoom: {round(graph_zoom * 100)}%")
         if state.status is GameStatus.COP_WIN:
             status_color = colors.COP
         elif state.status is GameStatus.ROBBER_WIN:
@@ -490,7 +511,12 @@ class Renderer:
             y += 29
 
         y = self._hint_y(y + 12, buttons)
-        hint_lines = ["Click highlighted vertices.", "R: restart   N: new graph"]
+        hint_lines = [
+            "Click highlighted vertices.",
+            "Wheel/+/-: zoom   0: reset",
+            "Middle/right drag: pan",
+            "R: restart   N: new graph",
+        ]
         for line in hint_lines:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
             self._blit(text, (x, y))
@@ -509,6 +535,7 @@ class Renderer:
         cop_count: int,
         mode_label: str,
         bot_label: str,
+        graph_zoom: float,
         mouse_pos: tuple[int, int] | None,
     ) -> None:
         x = panel_rect.x + 22
@@ -529,6 +556,7 @@ class Renderer:
             f"cops: {cop_count}",
             f"mode: {mode_label}",
             f"bot: {bot_label}",
+            f"zoom: {round(graph_zoom * 100)}%",
             prompt,
             f"cop starts: {selected_label}",
             "robber: -",
@@ -542,7 +570,12 @@ class Renderer:
             y += 29
 
         y = self._hint_y(y + 12, buttons)
-        hint_lines = ["Click highlighted vertices.", "Cop and robber must differ."]
+        hint_lines = [
+            "Click highlighted vertices.",
+            "Wheel/+/-: zoom   0: reset",
+            "Middle/right drag: pan",
+            "Cop and robber must differ.",
+        ]
         for line in hint_lines:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
             self._blit(text, (x, y))
@@ -555,4 +588,4 @@ class Renderer:
         if not buttons:
             return preferred_y
         first_button_y = min(button.rect.y for button in buttons)
-        return min(preferred_y, first_button_y - 58)
+        return min(preferred_y, first_button_y - 102)

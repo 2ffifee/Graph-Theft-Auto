@@ -14,54 +14,123 @@ from cops_and_robbers.ui.widgets import Button, Stepper
 
 class Renderer:
     VERTEX_RADIUS = 22
+    TITLE_FONT_SIZE = 28
+    HEADING_FONT_SIZE = 22
+    FONT_SIZE = 18
+    SMALL_FONT_SIZE = 15
 
     def __init__(self, surface: pygame.Surface):
         self.surface = surface
-        self.title_font = pygame.font.SysFont("arial", 28, bold=True)
-        self.heading_font = pygame.font.SysFont("arial", 22, bold=True)
-        self.font = pygame.font.SysFont("arial", 18)
-        self.small_font = pygame.font.SysFont("arial", 15)
+        self.scale = 1.0
+        self.offset = (0, 0)
+        self._font_scale = 0
+        self.title_font = pygame.font.SysFont("arial", self.TITLE_FONT_SIZE, bold=True)
+        self.heading_font = pygame.font.SysFont("arial", self.HEADING_FONT_SIZE, bold=True)
+        self.font = pygame.font.SysFont("arial", self.FONT_SIZE)
+        self.small_font = pygame.font.SysFont("arial", self.SMALL_FONT_SIZE)
+
+    def set_viewport(self, scale: float, offset: tuple[int, int]) -> None:
+        self.scale = scale
+        self.offset = offset
+        font_scale = max(1, round(scale * 100))
+        if font_scale == self._font_scale:
+            return
+        self._font_scale = font_scale
+        self.title_font = pygame.font.SysFont(
+            "arial",
+            max(1, round(self.TITLE_FONT_SIZE * scale)),
+            bold=True,
+        )
+        self.heading_font = pygame.font.SysFont(
+            "arial",
+            max(1, round(self.HEADING_FONT_SIZE * scale)),
+            bold=True,
+        )
+        self.font = pygame.font.SysFont("arial", max(1, round(self.FONT_SIZE * scale)))
+        self.small_font = pygame.font.SysFont("arial", max(1, round(self.SMALL_FONT_SIZE * scale)))
 
     def clear(self) -> None:
         self.surface.fill(colors.BACKGROUND)
 
+    def _point(self, pos: tuple[float, float]) -> tuple[int, int]:
+        return (
+            round(self.offset[0] + pos[0] * self.scale),
+            round(self.offset[1] + pos[1] * self.scale),
+        )
+
+    def _rect(self, rect: pygame.Rect) -> pygame.Rect:
+        return pygame.Rect(
+            round(self.offset[0] + rect.x * self.scale),
+            round(self.offset[1] + rect.y * self.scale),
+            max(1, round(rect.width * self.scale)),
+            max(1, round(rect.height * self.scale)),
+        )
+
+    def _radius(self, radius: float) -> int:
+        return max(1, round(radius * self.scale))
+
+    def _width(self, width: float) -> int:
+        return max(1, round(width * self.scale))
+
+    def _blit(self, source: pygame.Surface, pos: tuple[float, float]) -> None:
+        self.surface.blit(source, self._point(pos))
+
+    def _blit_center(self, source: pygame.Surface, center: tuple[float, float]) -> None:
+        self.surface.blit(source, source.get_rect(center=self._point(center)))
+
     def draw_setup(
         self,
+        panel: pygame.Rect,
         steppers: list[Stepper],
         buttons: list[Button],
         option_rows: list[tuple[str, str]],
         error: str | None,
+        mouse_pos: tuple[int, int] | None = None,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
-        self.surface.blit(title, (40, 40))
+        self._blit_center(title, (panel.centerx, panel.top - 48))
 
-        panel = pygame.Rect(40, 105, 490, 430)
-        pygame.draw.rect(self.surface, colors.PANEL_BG, panel, border_radius=8)
-        pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel, width=1, border_radius=8)
+        scaled_panel = self._rect(panel)
+        pygame.draw.rect(self.surface, colors.PANEL_BG, scaled_panel, border_radius=self._radius(8))
+        pygame.draw.rect(
+            self.surface,
+            colors.PANEL_BORDER,
+            scaled_panel,
+            width=self._width(1),
+            border_radius=self._radius(8),
+        )
 
-        y = 135
+        x = panel.x + 35
+        y = panel.y + 30
         for stepper in steppers:
-            stepper.draw(self.surface, self.font, 75, y)
+            stepper.draw(self.surface, self.font, x, y, mouse_pos, self.scale, self.offset)
             y += 54
 
-        option_y = 363
+        option_y = panel.y + 258
         for label, value in option_rows:
             label_surface = self.font.render(label, True, colors.TEXT)
-            self.surface.blit(label_surface, (75, option_y + 5))
-            value_rect = pygame.Rect(246, option_y, 205, 30)
-            pygame.draw.rect(self.surface, colors.VERTEX, value_rect, border_radius=4)
-            pygame.draw.rect(self.surface, colors.PANEL_BORDER, value_rect, width=1, border_radius=4)
+            self._blit(label_surface, (x, option_y + 5))
+            value_rect = pygame.Rect(panel.x + 206, option_y, 205, 30)
+            scaled_value_rect = self._rect(value_rect)
+            pygame.draw.rect(self.surface, colors.VERTEX, scaled_value_rect, border_radius=self._radius(4))
+            pygame.draw.rect(
+                self.surface,
+                colors.PANEL_BORDER,
+                scaled_value_rect,
+                width=self._width(1),
+                border_radius=self._radius(4),
+            )
             value_surface = self.small_font.render(value, True, colors.TEXT)
-            self.surface.blit(value_surface, value_surface.get_rect(center=value_rect.center))
+            self.surface.blit(value_surface, value_surface.get_rect(center=scaled_value_rect.center))
             option_y += 48
 
         for button in buttons:
-            button.draw(self.surface, self.font)
+            button.draw(self.surface, self.font, mouse_pos, self.scale, self.offset)
 
         if error:
             err = self.small_font.render(error, True, colors.ERROR)
-            self.surface.blit(err, (75, 512))
+            self._blit(err, (x, panel.bottom - 23))
 
     def draw_game(
         self,
@@ -76,20 +145,46 @@ class Renderer:
         staged_cop_destinations: tuple[int, ...] = (),
         mode_label: str = "Player vs Player",
         bot_label: str = "-",
+        graph_zoom: float = 1.0,
+        mouse_pos: tuple[int, int] | None = None,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
-        self.surface.blit(title, (20, 18))
+        self._blit(title, (20, 18))
 
-        pygame.draw.rect(self.surface, (250, 250, 250), board_rect, border_radius=8)
-        pygame.draw.rect(self.surface, colors.PANEL_BORDER, board_rect, width=1, border_radius=8)
-        pygame.draw.rect(self.surface, colors.PANEL_BG, panel_rect, border_radius=8)
-        pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel_rect, width=1, border_radius=8)
+        scaled_board = self._rect(board_rect)
+        scaled_panel = self._rect(panel_rect)
+        pygame.draw.rect(self.surface, (250, 250, 250), scaled_board, border_radius=self._radius(8))
+        pygame.draw.rect(
+            self.surface,
+            colors.PANEL_BORDER,
+            scaled_board,
+            width=self._width(1),
+            border_radius=self._radius(8),
+        )
+        pygame.draw.rect(self.surface, colors.PANEL_BG, scaled_panel, border_radius=self._radius(8))
+        pygame.draw.rect(
+            self.surface,
+            colors.PANEL_BORDER,
+            scaled_panel,
+            width=self._width(1),
+            border_radius=self._radius(8),
+        )
 
         if legal_vertices is None:
             legal_vertices = {move for move in rules.get_legal_moves(state) if isinstance(move, int)}
-        self._draw_graph(state, layout, legal_vertices, staged_cop_destinations)
-        self._draw_panel(state, panel_rect, buttons, move_prompt, staged_cop_destinations, mode_label, bot_label)
+        self._draw_clipped_to_board(scaled_board, self._draw_graph, state, layout, legal_vertices, staged_cop_destinations)
+        self._draw_panel(
+            state,
+            panel_rect,
+            buttons,
+            move_prompt,
+            staged_cop_destinations,
+            mode_label,
+            bot_label,
+            graph_zoom,
+            mouse_pos,
+        )
 
     def draw_placement(
         self,
@@ -103,19 +198,42 @@ class Renderer:
         cop_count: int,
         mode_label: str,
         bot_label: str,
+        graph_zoom: float = 1.0,
+        mouse_pos: tuple[int, int] | None = None,
     ) -> None:
         self.clear()
         title = self.title_font.render("Graph Theft Auto", True, colors.TEXT)
-        self.surface.blit(title, (20, 18))
+        self._blit(title, (20, 18))
 
-        pygame.draw.rect(self.surface, (250, 250, 250), board_rect, border_radius=8)
-        pygame.draw.rect(self.surface, colors.PANEL_BORDER, board_rect, width=1, border_radius=8)
-        pygame.draw.rect(self.surface, colors.PANEL_BG, panel_rect, border_radius=8)
-        pygame.draw.rect(self.surface, colors.PANEL_BORDER, panel_rect, width=1, border_radius=8)
+        scaled_board = self._rect(board_rect)
+        scaled_panel = self._rect(panel_rect)
+        pygame.draw.rect(self.surface, (250, 250, 250), scaled_board, border_radius=self._radius(8))
+        pygame.draw.rect(
+            self.surface,
+            colors.PANEL_BORDER,
+            scaled_board,
+            width=self._width(1),
+            border_radius=self._radius(8),
+        )
+        pygame.draw.rect(self.surface, colors.PANEL_BG, scaled_panel, border_radius=self._radius(8))
+        pygame.draw.rect(
+            self.surface,
+            colors.PANEL_BORDER,
+            scaled_panel,
+            width=self._width(1),
+            border_radius=self._radius(8),
+        )
 
         selectable = set(graph.vertices())
         selectable.difference_update(selected_cop_positions)
-        self._draw_placement_graph(graph, layout, selectable, selected_cop_positions)
+        self._draw_clipped_to_board(
+            scaled_board,
+            self._draw_placement_graph,
+            graph,
+            layout,
+            selectable,
+            selected_cop_positions,
+        )
         self._draw_placement_panel(
             graph,
             panel_rect,
@@ -125,7 +243,17 @@ class Renderer:
             cop_count,
             mode_label,
             bot_label,
+            graph_zoom,
+            mouse_pos,
         )
+
+    def _draw_clipped_to_board(self, board_rect: pygame.Rect, draw_func, *args) -> None:
+        previous_clip = self.surface.get_clip()
+        self.surface.set_clip(board_rect)
+        try:
+            draw_func(*args)
+        finally:
+            self.surface.set_clip(previous_clip)
 
     def _draw_graph(
         self,
@@ -136,22 +264,39 @@ class Renderer:
     ) -> None:
         positions = layout.positions
         for u, v in state.graph.edges():
-            pygame.draw.line(self.surface, colors.EDGE, positions[u], positions[v], width=2)
+            pygame.draw.line(
+                self.surface,
+                colors.EDGE,
+                self._point(positions[u]),
+                self._point(positions[v]),
+                width=self._width(2),
+            )
 
         for vertex, pos in positions.items():
             if vertex in legal_moves:
-                pygame.draw.circle(self.surface, colors.LEGAL_MOVE, pos, self.VERTEX_RADIUS + 7)
+                pygame.draw.circle(
+                    self.surface,
+                    colors.LEGAL_MOVE,
+                    self._point(pos),
+                    self._radius(self.VERTEX_RADIUS + 7),
+                )
                 pygame.draw.circle(
                     self.surface,
                     colors.LEGAL_MOVE_OUTLINE,
-                    pos,
-                    self.VERTEX_RADIUS + 7,
-                    width=2,
+                    self._point(pos),
+                    self._radius(self.VERTEX_RADIUS + 7),
+                    width=self._width(2),
                 )
-            pygame.draw.circle(self.surface, colors.VERTEX, pos, self.VERTEX_RADIUS)
-            pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, pos, self.VERTEX_RADIUS, width=2)
+            pygame.draw.circle(self.surface, colors.VERTEX, self._point(pos), self._radius(self.VERTEX_RADIUS))
+            pygame.draw.circle(
+                self.surface,
+                colors.VERTEX_OUTLINE,
+                self._point(pos),
+                self._radius(self.VERTEX_RADIUS),
+                width=self._width(2),
+            )
             label = self.small_font.render(str(vertex), True, colors.TEXT)
-            self.surface.blit(label, label.get_rect(center=pos))
+            self._blit_center(label, pos)
 
         self._draw_tokens(state, positions, staged_cop_destinations)
 
@@ -167,7 +312,12 @@ class Renderer:
             cop_pos = positions[display_position]
             token_center = (cop_pos[0] - 12, cop_pos[1] - 18)
             if index <= len(staged_cop_destinations):
-                pygame.draw.circle(self.surface, colors.LEGAL_MOVE_OUTLINE, token_center, 14)
+                pygame.draw.circle(
+                    self.surface,
+                    colors.LEGAL_MOVE_OUTLINE,
+                    self._point(token_center),
+                    self._radius(14),
+                )
             self._draw_cop_car(token_center, index=index, scale=0.78)
         self._draw_robber_marker((robber_pos[0] + 14, robber_pos[1] - 18), scale=0.92)
 
@@ -180,22 +330,39 @@ class Renderer:
     ) -> None:
         positions = layout.positions
         for u, v in graph.edges():
-            pygame.draw.line(self.surface, colors.EDGE, positions[u], positions[v], width=2)
+            pygame.draw.line(
+                self.surface,
+                colors.EDGE,
+                self._point(positions[u]),
+                self._point(positions[v]),
+                width=self._width(2),
+            )
 
         for vertex, pos in positions.items():
             if vertex in selectable:
-                pygame.draw.circle(self.surface, colors.LEGAL_MOVE, pos, self.VERTEX_RADIUS + 7)
+                pygame.draw.circle(
+                    self.surface,
+                    colors.LEGAL_MOVE,
+                    self._point(pos),
+                    self._radius(self.VERTEX_RADIUS + 7),
+                )
                 pygame.draw.circle(
                     self.surface,
                     colors.LEGAL_MOVE_OUTLINE,
-                    pos,
-                    self.VERTEX_RADIUS + 7,
-                    width=2,
+                    self._point(pos),
+                    self._radius(self.VERTEX_RADIUS + 7),
+                    width=self._width(2),
                 )
-            pygame.draw.circle(self.surface, colors.VERTEX, pos, self.VERTEX_RADIUS)
-            pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, pos, self.VERTEX_RADIUS, width=2)
+            pygame.draw.circle(self.surface, colors.VERTEX, self._point(pos), self._radius(self.VERTEX_RADIUS))
+            pygame.draw.circle(
+                self.surface,
+                colors.VERTEX_OUTLINE,
+                self._point(pos),
+                self._radius(self.VERTEX_RADIUS),
+                width=self._width(2),
+            )
             label = self.small_font.render(str(vertex), True, colors.TEXT)
-            self.surface.blit(label, label.get_rect(center=pos))
+            self._blit_center(label, pos)
 
         for index, selected_cop_position in enumerate(selected_cop_positions, start=1):
             cop_pos = positions[selected_cop_position]
@@ -203,7 +370,8 @@ class Renderer:
             self._draw_cop_car(token_center, index=index, scale=0.78)
 
     def _draw_cop_car(self, center: tuple[float, float], index: int, scale: float = 1.0) -> None:
-        x, y = center
+        x, y = self._point(center)
+        scale *= self.scale
         body = pygame.Rect(0, 0, int(34 * scale), int(18 * scale))
         body.center = (round(x), round(y))
         roof = pygame.Rect(0, 0, int(17 * scale), int(10 * scale))
@@ -238,7 +406,8 @@ class Renderer:
         self._draw_black_clad_robber((x - 8 * scale, y - 2 * scale), scale)
 
     def _draw_stolen_car(self, center: tuple[float, float], scale: float = 1.0) -> None:
-        x, y = center
+        x, y = self._point(center)
+        scale *= self.scale
         body = pygame.Rect(0, 0, int(32 * scale), int(15 * scale))
         body.center = (round(x), round(y))
         roof = pygame.Rect(0, 0, int(15 * scale), int(8 * scale))
@@ -254,7 +423,8 @@ class Renderer:
         pygame.draw.circle(self.surface, colors.VERTEX_OUTLINE, (body.right - round(8 * scale), body.bottom), wheel_radius)
 
     def _draw_black_clad_robber(self, center: tuple[float, float], scale: float = 1.0) -> None:
-        x, y = center
+        x, y = self._point(center)
+        scale *= self.scale
         outline = (245, 245, 245)
         black = (8, 8, 10)
         dark = (20, 20, 24)
@@ -301,11 +471,13 @@ class Renderer:
         staged_cop_destinations: tuple[int, ...],
         mode_label: str,
         bot_label: str,
+        graph_zoom: float,
+        mouse_pos: tuple[int, int] | None,
     ) -> None:
         x = panel_rect.x + 22
         y = panel_rect.y + 22
         heading = self.heading_font.render("Status", True, colors.TEXT)
-        self.surface.blit(heading, (x, y))
+        self._blit(heading, (x, y))
         y += 42
 
         lines = [
@@ -324,6 +496,7 @@ class Renderer:
             lines.append(f"planned: {staged_label}")
         lines.append(f"mode: {mode_label}")
         lines.append(f"bot: {bot_label}")
+        lines.append(f"zoom: {round(graph_zoom * 100)}%")
         if state.status is GameStatus.COP_WIN:
             status_color = colors.COP
         elif state.status is GameStatus.ROBBER_WIN:
@@ -334,18 +507,23 @@ class Renderer:
         for line in lines:
             color = status_color if line.startswith("status:") else colors.TEXT
             text = self.font.render(line, True, color)
-            self.surface.blit(text, (x, y))
+            self._blit(text, (x, y))
             y += 29
 
         y = self._hint_y(y + 12, buttons)
-        hint_lines = ["Click highlighted vertices.", "R: restart   N: new graph"]
+        hint_lines = [
+            "Click highlighted vertices.",
+            "Wheel/+/-: zoom   0: reset",
+            "Middle/right drag: pan",
+            "R: restart   N: new graph",
+        ]
         for line in hint_lines:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
-            self.surface.blit(text, (x, y))
+            self._blit(text, (x, y))
             y += 22
 
         for button in buttons:
-            button.draw(self.surface, self.font)
+            button.draw(self.surface, self.font, mouse_pos, self.scale, self.offset)
 
     def _draw_placement_panel(
         self,
@@ -357,11 +535,13 @@ class Renderer:
         cop_count: int,
         mode_label: str,
         bot_label: str,
+        graph_zoom: float,
+        mouse_pos: tuple[int, int] | None,
     ) -> None:
         x = panel_rect.x + 22
         y = panel_rect.y + 22
         heading = self.heading_font.render("Start Positions", True, colors.TEXT)
-        self.surface.blit(heading, (x, y))
+        self._blit(heading, (x, y))
         y += 42
 
         if len(selected_cop_positions) < cop_count:
@@ -376,6 +556,7 @@ class Renderer:
             f"cops: {cop_count}",
             f"mode: {mode_label}",
             f"bot: {bot_label}",
+            f"zoom: {round(graph_zoom * 100)}%",
             prompt,
             f"cop starts: {selected_label}",
             "robber: -",
@@ -385,21 +566,26 @@ class Renderer:
             if line.startswith("Robber:"):
                 color = colors.ROBBER
             text = self.font.render(line, True, color)
-            self.surface.blit(text, (x, y))
+            self._blit(text, (x, y))
             y += 29
 
         y = self._hint_y(y + 12, buttons)
-        hint_lines = ["Click highlighted vertices.", "Cop and robber must differ."]
+        hint_lines = [
+            "Click highlighted vertices.",
+            "Wheel/+/-: zoom   0: reset",
+            "Middle/right drag: pan",
+            "Cop and robber must differ.",
+        ]
         for line in hint_lines:
             text = self.small_font.render(line, True, colors.MUTED_TEXT)
-            self.surface.blit(text, (x, y))
+            self._blit(text, (x, y))
             y += 22
 
         for button in buttons:
-            button.draw(self.surface, self.font)
+            button.draw(self.surface, self.font, mouse_pos, self.scale, self.offset)
 
     def _hint_y(self, preferred_y: int, buttons: list[Button]) -> int:
         if not buttons:
             return preferred_y
         first_button_y = min(button.rect.y for button in buttons)
-        return min(preferred_y, first_button_y - 58)
+        return min(preferred_y, first_button_y - 102)

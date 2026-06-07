@@ -2,4 +2,4 @@
 set -e
 
 source .venv/bin/activate
-PYTHONPATH="src" python -m cops_and_robbers.main
+PYTHONPATH="src"  python -m cops_and_robbers.main

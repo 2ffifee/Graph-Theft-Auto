@@ -25,12 +25,15 @@ from cops_and_robbers.ui.input_handler import InputHandler
 from cops_and_robbers.ui.renderer import Renderer
 from cops_and_robbers.ui.widgets import Button, Stepper
 from cops_and_robbers.utils.validation import (
+    GRAPH_TYPE_ANY,
+    GRAPH_TYPE_PLANAR,
+    GRAPH_TYPE_TREE,
     MAX_ROUNDS,
     MAX_VERTICES,
     MIN_ROUNDS,
     MIN_VERTICES,
     clamp,
-    max_edges_for_vertices,
+    edge_bounds_for_graph_type,
     validate_edge_count,
     validate_round_limit,
 )
@@ -57,9 +60,27 @@ class BotLevel(Enum):
     EXPERT = "5 Expert"
 
 
+class GraphType(Enum):
+    ANY = ("Any", GRAPH_TYPE_ANY)
+    TREE = ("Tree", GRAPH_TYPE_TREE)
+    PLANAR = ("Planar", GRAPH_TYPE_PLANAR)
+
+    @property
+    def label(self) -> str:
+        return self.value[0]
+
+    @property
+    def validation_key(self) -> str:
+        return self.value[1]
+
+
 class CopsAndRobbersApp:
     WIDTH = 1100
     HEIGHT = 750
+    SETUP_PANEL_WIDTH = 490
+    SETUP_PANEL_HEIGHT = 500
+    GRAPH_ZOOM_FACTOR = 1.1
+    GRAPH_PAN_STEP = 35
     MIN_COPS = 1
     MAX_COPS = 3
 
@@ -73,7 +94,8 @@ class CopsAndRobbersApp:
     ):
         pygame.init()
         pygame.display.set_caption("Graph Theft Auto")
-        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.RESIZABLE)
+        self.window_size = self.screen.get_size()
         self.clock = pygame.time.Clock()
         self.renderer = Renderer(self.screen)
         self.input_handler = InputHandler()
@@ -83,8 +105,9 @@ class CopsAndRobbersApp:
 
         self.current_screen = AppScreen.SETUP
         self.running = True
+        self.graph_type = GraphType.ANY
         self.setup_n = clamp(initial_n, MIN_VERTICES, MAX_VERTICES)
-        self.setup_m = clamp(initial_m, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
+        self.setup_m = clamp(initial_m, *self._edge_bounds_for_setup())
         self.setup_rounds = clamp(initial_rounds, MIN_ROUNDS, MAX_ROUNDS)
         self.setup_cop_count = 1
         self.game_mode = GameMode.PLAYER_VS_PLAYER
@@ -94,6 +117,10 @@ class CopsAndRobbersApp:
         self.graph: GraphModel | None = None
         self.state: GameState | None = None
         self.layout: GraphLayout | None = None
+        self.graph_zoom = 1.0
+        self.graph_pan = (0, 0)
+        self.is_panning_graph = False
+        self.last_pan_pos: tuple[int, int] | None = None
         self.selected_cop_positions: list[int] = []
         self.staged_cop_destinations: list[int] = []
 
@@ -120,12 +147,17 @@ class CopsAndRobbersApp:
             self._apply_bot_turn_if_ready()
 
     def start_new_game(self, n: int, m: int, round_limit: int) -> None:
-        validate_edge_count(n, m)
+        validate_edge_count(n, m, self.graph_type.validation_key)
         validate_round_limit(round_limit)
         self.setup_n = n
         self.setup_m = m
         self.setup_rounds = round_limit
-        self.graph = generate_connected_graph(n, m, seed=self._next_seed())
+        self.graph = generate_connected_graph(
+            n,
+            m,
+            seed=self._next_seed(),
+            graph_type=self.graph_type.validation_key,
+        )
         self._begin_placement_on_graph(self.graph)
 
     def restart_current_graph(self) -> None:
@@ -141,25 +173,66 @@ class CopsAndRobbersApp:
             self.running = False
             return
 
+        if event.type == pygame.VIDEORESIZE:
+            # Do not recreate the display surface here; on Wayland/Hyprland that can
+            # trigger a configure/resize feedback loop.
+            self.window_size = event.size
+            return
+
         if event.type == pygame.KEYDOWN:
             self._handle_key(event.key)
             return
 
+        if event.type == pygame.MOUSEWHEEL:
+            logical_pos = self._window_to_logical(pygame.mouse.get_pos())
+            if logical_pos is not None:
+                wheel_y = float(getattr(event, "precise_y", event.y))
+                if getattr(event, "flipped", False):
+                    wheel_y = -wheel_y
+                self._handle_wheel(logical_pos, wheel_y)
+            return
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button in {2, 3}:
+            logical_pos = self._window_to_logical(event.pos)
+            if logical_pos is not None and self._can_pan_graph(logical_pos):
+                self.is_panning_graph = True
+                self.last_pan_pos = logical_pos
+            return
+
+        if event.type == pygame.MOUSEBUTTONUP and event.button in {2, 3}:
+            self.is_panning_graph = False
+            self.last_pan_pos = None
+            return
+
+        if event.type == pygame.MOUSEMOTION and self.is_panning_graph:
+            logical_pos = self._window_to_logical(event.pos)
+            if logical_pos is not None:
+                self._handle_graph_pan(logical_pos)
+            return
+
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            logical_pos = self._window_to_logical(event.pos)
+            if logical_pos is None:
+                return
             if self.current_screen is AppScreen.SETUP:
-                self._handle_setup_click(event.pos)
+                self._handle_setup_click(logical_pos)
             elif self.current_screen is AppScreen.PLACEMENT:
-                self._handle_placement_click(event.pos)
+                self._handle_placement_click(logical_pos)
             else:
-                self._handle_game_click(event.pos)
+                self._handle_game_click(logical_pos)
 
     def render(self) -> None:
+        scale, offset_x, offset_y, _ = self._scale_metrics()
+        self.renderer.set_viewport(scale, (offset_x, offset_y))
+        mouse_pos = self._window_to_logical(pygame.mouse.get_pos())
         if self.current_screen is AppScreen.SETUP:
             self.renderer.draw_setup(
+                self._setup_panel_rect(),
                 self._setup_steppers(),
                 self._setup_buttons(),
                 self._setup_option_rows(),
                 self.setup_error,
+                mouse_pos,
             )
             return
 
@@ -177,6 +250,8 @@ class CopsAndRobbersApp:
                 self.setup_cop_count,
                 self.game_mode.value,
                 self._bot_label(),
+                self.graph_zoom,
+                mouse_pos,
             )
             return
 
@@ -202,18 +277,15 @@ class CopsAndRobbersApp:
             tuple(self.staged_cop_destinations),
             self.game_mode.value,
             self._bot_label(),
+            self.graph_zoom,
+            mouse_pos,
         )
 
     def _begin_placement_on_graph(self, graph: GraphModel) -> None:
         self.state = None
         self.selected_cop_positions = []
         self.staged_cop_destinations = []
-        self.layout = GraphLayout(
-            graph,
-            self.board_rect.width,
-            self.board_rect.height,
-            origin=(self.board_rect.x, self.board_rect.y),
-        )
+        self._rebuild_graph_layout(graph)
         self.current_screen = AppScreen.PLACEMENT
         self.setup_error = None
         self._advance_bot_placement()
@@ -240,13 +312,53 @@ class CopsAndRobbersApp:
             self.restart_current_graph()
         elif key == pygame.K_n and self.current_screen in {AppScreen.PLACEMENT, AppScreen.GAME}:
             self.generate_new_graph()
+        elif key in {pygame.K_MINUS, pygame.K_KP_MINUS}:
+            self._adjust_graph_zoom(-1.0)
+        elif key in {pygame.K_EQUALS, pygame.K_KP_PLUS}:
+            self._adjust_graph_zoom(1.0)
+        elif key == pygame.K_0:
+            self._set_graph_zoom(1.0)
+        elif key == pygame.K_LEFT:
+            self._pan_graph(self.GRAPH_PAN_STEP, 0)
+        elif key == pygame.K_RIGHT:
+            self._pan_graph(-self.GRAPH_PAN_STEP, 0)
+        elif key == pygame.K_UP:
+            self._pan_graph(0, self.GRAPH_PAN_STEP)
+        elif key == pygame.K_DOWN:
+            self._pan_graph(0, -self.GRAPH_PAN_STEP)
+
+    def _handle_wheel(self, pos: tuple[int, int], wheel_y: float) -> None:
+        if self.current_screen not in {AppScreen.PLACEMENT, AppScreen.GAME}:
+            return
+        if wheel_y == 0 or not self.board_rect.collidepoint(pos):
+            return
+        self._adjust_graph_zoom(wheel_y, anchor=pos)
+
+    def _can_pan_graph(self, pos: tuple[int, int]) -> bool:
+        return (
+            self.current_screen in {AppScreen.PLACEMENT, AppScreen.GAME}
+            and self.board_rect.collidepoint(pos)
+        )
+
+    def _handle_graph_pan(self, pos: tuple[int, int]) -> None:
+        if self.last_pan_pos is None:
+            self.last_pan_pos = pos
+            return
+        dx = pos[0] - self.last_pan_pos[0]
+        dy = pos[1] - self.last_pan_pos[1]
+        self.last_pan_pos = pos
+        self._pan_graph(dx, dy)
 
     def _handle_setup_click(self, pos: tuple[int, int]) -> None:
         buttons = self._setup_buttons()
         action = self.input_handler.clicked_button(pos, buttons)
         if action is None:
+            stepper_x = self._setup_panel_rect().x + 35
             for stepper in self._setup_steppers():
-                action = self.input_handler.clicked_button(pos, list(stepper.make_buttons(75, self._stepper_y(stepper.label))))
+                action = self.input_handler.clicked_button(
+                    pos,
+                    list(stepper.make_buttons(stepper_x, self._stepper_y(stepper.label))),
+                )
                 if action is not None:
                     break
         if action is None:
@@ -320,9 +432,9 @@ class CopsAndRobbersApp:
             self.setup_n = clamp(self.setup_n + 1, MIN_VERTICES, MAX_VERTICES)
             self._clamp_edges_for_current_n()
         elif action == "m_minus":
-            self.setup_m = clamp(self.setup_m - 1, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
+            self.setup_m = clamp(self.setup_m - 1, *self._edge_bounds_for_setup())
         elif action == "m_plus":
-            self.setup_m = clamp(self.setup_m + 1, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
+            self.setup_m = clamp(self.setup_m + 1, *self._edge_bounds_for_setup())
         elif action == "rounds_minus":
             self.setup_rounds = clamp(self.setup_rounds - 1, MIN_ROUNDS, MAX_ROUNDS)
         elif action == "rounds_plus":
@@ -331,6 +443,12 @@ class CopsAndRobbersApp:
             self.setup_cop_count = clamp(self.setup_cop_count - 1, self.MIN_COPS, self.MAX_COPS)
         elif action == "cops_plus":
             self.setup_cop_count = clamp(self.setup_cop_count + 1, self.MIN_COPS, self.MAX_COPS)
+        elif action == "type_prev":
+            self.graph_type = self._previous_enum_value(GraphType, self.graph_type)
+            self._clamp_edges_for_current_n()
+        elif action == "type_next":
+            self.graph_type = self._next_enum_value(GraphType, self.graph_type)
+            self._clamp_edges_for_current_n()
         elif action == "mode_prev":
             self.game_mode = self._previous_enum_value(GameMode, self.game_mode)
         elif action == "mode_next":
@@ -346,7 +464,8 @@ class CopsAndRobbersApp:
                 self.setup_error = str(exc)
 
     def _clamp_edges_for_current_n(self) -> None:
-        self.setup_m = clamp(self.setup_m, self.setup_n - 1, max_edges_for_vertices(self.setup_n))
+        min_edges, max_edges = self._edge_bounds_for_setup()
+        self.setup_m = clamp(self.setup_m, min_edges, max_edges)
 
     def _setup_steppers(self) -> list[Stepper]:
         return [
@@ -356,25 +475,28 @@ class CopsAndRobbersApp:
                 self.setup_m,
                 "m_minus",
                 "m_plus",
-                self.setup_n - 1,
-                max_edges_for_vertices(self.setup_n),
+                *self._edge_bounds_for_setup(),
             ),
             Stepper("Rounds T:", self.setup_rounds, "rounds_minus", "rounds_plus", MIN_ROUNDS, MAX_ROUNDS),
             Stepper("Cops:", self.setup_cop_count, "cops_minus", "cops_plus", self.MIN_COPS, self.MAX_COPS),
         ]
 
     def _setup_buttons(self) -> list[Button]:
+        panel = self._setup_panel_rect()
         return [
-            Button(pygame.Rect(207, 359, 34, 30), "<", "mode_prev"),
-            Button(pygame.Rect(455, 359, 34, 30), ">", "mode_next"),
-            Button(pygame.Rect(207, 407, 34, 30), "<", "level_prev"),
-            Button(pygame.Rect(455, 407, 34, 30), ">", "level_next"),
-            Button(pygame.Rect(75, 470, 165, 36), "Start Game", "start"),
+            Button(pygame.Rect(panel.x + 167, panel.y + 254, 34, 30), "<", "mode_prev"),
+            Button(pygame.Rect(panel.x + 415, panel.y + 254, 34, 30), ">", "mode_next"),
+            Button(pygame.Rect(panel.x + 167, panel.y + 302, 34, 30), "<", "type_prev"),
+            Button(pygame.Rect(panel.x + 415, panel.y + 302, 34, 30), ">", "type_next"),
+            Button(pygame.Rect(panel.x + 167, panel.y + 350, 34, 30), "<", "level_prev"),
+            Button(pygame.Rect(panel.x + 415, panel.y + 350, 34, 30), ">", "level_next"),
+            Button(pygame.Rect(panel.centerx - 82, panel.y + 430, 165, 36), "Start Game", "start"),
         ]
 
     def _setup_option_rows(self) -> list[tuple[str, str]]:
         return [
             ("Mode:", self.game_mode.value),
+            ("Graph type:", self.graph_type.label),
             ("Bot level:", self.bot_level.value),
         ]
 
@@ -399,13 +521,95 @@ class CopsAndRobbersApp:
         ]
 
     def _stepper_y(self, label: str) -> int:
+        panel = self._setup_panel_rect()
         lookup = {
-            "Vertices n:": 135,
-            "Edges m:": 189,
-            "Rounds T:": 243,
-            "Cops:": 297,
+            "Vertices n:": panel.y + 30,
+            "Edges m:": panel.y + 84,
+            "Rounds T:": panel.y + 138,
+            "Cops:": panel.y + 192,
         }
         return lookup[label]
+
+    def _edge_bounds_for_setup(self) -> tuple[int, int]:
+        return edge_bounds_for_graph_type(self.setup_n, self.graph_type.validation_key)
+
+    def _setup_panel_rect(self) -> pygame.Rect:
+        return pygame.Rect(
+            (self.WIDTH - self.SETUP_PANEL_WIDTH) // 2,
+            (self.HEIGHT - self.SETUP_PANEL_HEIGHT) // 2,
+            self.SETUP_PANEL_WIDTH,
+            self.SETUP_PANEL_HEIGHT,
+        )
+
+    def _adjust_graph_zoom(self, delta: float, anchor: tuple[int, int] | None = None) -> None:
+        self._set_graph_zoom(self.graph_zoom * (self.GRAPH_ZOOM_FACTOR ** delta), anchor)
+
+    def _set_graph_zoom(self, zoom: float, anchor: tuple[int, int] | None = None) -> None:
+        if self.current_screen not in {AppScreen.PLACEMENT, AppScreen.GAME}:
+            return
+        # Keep only a tiny numerical floor so repeated zoom-out never reaches
+        # zero or negative layout dimensions; there is no practical UI cap.
+        new_zoom = max(1e-6, zoom)
+        if abs(new_zoom - self.graph_zoom) < 1e-9:
+            return
+        if anchor is not None:
+            old_zoom = self.graph_zoom
+            board_center = (self.board_rect.centerx, self.board_rect.centery)
+            self.graph_pan = (
+                round(anchor[0] - (anchor[0] - board_center[0] - self.graph_pan[0]) * new_zoom / old_zoom - board_center[0]),
+                round(anchor[1] - (anchor[1] - board_center[1] - self.graph_pan[1]) * new_zoom / old_zoom - board_center[1]),
+            )
+        self.graph_zoom = new_zoom
+        if self.graph is not None:
+            self._rebuild_graph_layout(self.graph)
+
+    def _pan_graph(self, dx: int, dy: int) -> None:
+        if self.current_screen not in {AppScreen.PLACEMENT, AppScreen.GAME}:
+            return
+        if dx == 0 and dy == 0:
+            return
+        self.graph_pan = (self.graph_pan[0] + dx, self.graph_pan[1] + dy)
+        if self.graph is not None:
+            self._rebuild_graph_layout(self.graph)
+
+    def _rebuild_graph_layout(self, graph: GraphModel) -> None:
+        width = max(1, round(self.board_rect.width * self.graph_zoom))
+        height = max(1, round(self.board_rect.height * self.graph_zoom))
+        origin = (
+            round(self.board_rect.centerx - width / 2 + self.graph_pan[0]),
+            round(self.board_rect.centery - height / 2 + self.graph_pan[1]),
+        )
+        margin = max(20, round(60 * self.graph_zoom))
+        self.layout = GraphLayout(graph, width, height, margin=margin, origin=origin)
+
+    def _scale_metrics(self) -> tuple[float, int, int, tuple[int, int]]:
+        raw_width, raw_height = self.screen.get_size()
+        window_width = max(1, raw_width)
+        window_height = max(1, raw_height)
+        self.window_size = (window_width, window_height)
+        scale = max(0.01, min(window_width / self.WIDTH, window_height / self.HEIGHT))
+        scaled_size = (
+            max(1, round(self.WIDTH * scale)),
+            max(1, round(self.HEIGHT * scale)),
+        )
+        offset_x = (window_width - scaled_size[0]) // 2
+        offset_y = (window_height - scaled_size[1]) // 2
+        return scale, offset_x, offset_y, scaled_size
+
+    def _window_to_logical(self, pos: tuple[int, int]) -> tuple[int, int] | None:
+        scale, offset_x, offset_y, scaled_size = self._scale_metrics()
+        x, y = pos
+        if not (
+            offset_x <= x < offset_x + scaled_size[0]
+            and offset_y <= y < offset_y + scaled_size[1]
+        ):
+            return None
+        logical_x = round((x - offset_x) / scale)
+        logical_y = round((y - offset_y) / scale)
+        return (
+            clamp(logical_x, 0, self.WIDTH - 1),
+            clamp(logical_y, 0, self.HEIGHT - 1),
+        )
 
     def _next_seed(self) -> int:
         return self.rng.randrange(0, 2**32)

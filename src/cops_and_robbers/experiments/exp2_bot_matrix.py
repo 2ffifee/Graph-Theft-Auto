@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--n-cops", type=int, default=1, help="liczba policjantów (default: 1)")
     p.add_argument("--seed", type=int, default=42, help="master seed (default: 42)")
     p.add_argument("--graph-type", choices=["any", "tree", "planar"], default="any")
-    p.add_argument("--placement", choices=["random", "heuristic"], default="random")
+    p.add_argument("--placement", choices=["random", "heuristic"], default="heuristic")
     p.add_argument("--no-minimax", action="store_true", help="pomiń kolumny/wiersze minimax (szybciej)")
     p.add_argument("--minimax-depth", type=int, default=3, help="głębokość minimax (default: 3)")
     p.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="katalog na wyniki CSV")

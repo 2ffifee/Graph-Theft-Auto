@@ -136,7 +136,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--n-cops", type=int, default=1, help="liczba policjantów (default: 1)")
     p.add_argument("--seed", type=int, default=42, help="master seed (default: 42)")
     p.add_argument("--graph-type", choices=["any", "tree", "planar"], default="any")
-    p.add_argument("--placement", choices=["random", "heuristic"], default="random")
+    p.add_argument("--placement", choices=["random", "heuristic"], default="heuristic")
     p.add_argument("--compare", choices=["cop-strategies", "robber-strategies"],
                    default="cop-strategies",
                    help="czy porównujemy strategie policjanta czy złodzieja")

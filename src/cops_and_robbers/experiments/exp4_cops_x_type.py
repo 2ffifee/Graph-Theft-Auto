@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--bot", choices=["random", "greedy", "minimax"], default="minimax",
                    help="rodzaj botów (default: minimax expert)")
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--placement", choices=["random", "heuristic"], default="random")
+    p.add_argument("--placement", choices=["random", "heuristic"], default="heuristic")
     p.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)

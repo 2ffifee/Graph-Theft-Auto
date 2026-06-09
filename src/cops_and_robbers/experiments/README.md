@@ -41,6 +41,7 @@ Domyślne wartości odpowiadają sugestiom z placeholderów WIP w prezentacji.
 ### Eksperyment 2 — Macierz bot vs bot
 - `n=12`, `m=18`, `T=30`, `n_cops=1`
 - `N=1000` gier na komórkę macierzy
+- `placement=heuristic`
 - Strategie: `random`, `greedy`, `minimax(d=3)`
 - Czas: ~kilka minut (głównie z powodu komórek z minimax)
 
@@ -52,6 +53,7 @@ python -m cops_and_robbers.experiments.exp2_bot_matrix --no-minimax --games 1000
 ### Eksperyment 3 — Wpływ rozmiaru grafu
 - `n ∈ {5, 8, 10, 15, 20, 25, 30}`, `m/n ≈ 1.5`, `T = 2n`
 - `N=200` gier na punkt, `n_cops=1`
+- `placement=heuristic`
 - Domyślnie porównuje strategie policjanta: `random` vs `greedy` vs `minimax(d=2)`
 - Domyślny przeciwnik (robber) to `greedy`
 - Czas: ~kilka minut
@@ -65,6 +67,7 @@ python -m cops_and_robbers.experiments.exp3_size_sweep --compare robber-strategi
 - `n=12`, `m=18` (auto-clampowane do n−1 dla drzew), `T=30`
 - `k ∈ {1, 2, 3}` × typy `{any, tree, planar}`
 - `N=200` gier na konfigurację
+- `placement=heuristic`
 - Boty domyślnie `minimax` z głębokościami z presetu *Expert*
   (`d_cop = 5` dla `k=1`, `d=3` dla `k=2,3`)
 - Czas: ~kilka minut
@@ -101,10 +104,10 @@ konfiguracji.
 ## Wybór pozycji startowych
 
 Flaga `--placement`:
-- `random` (domyślnie) — losowe różne wierzchołki dla policjantów i złodzieja.
-- `heuristic` — pozycje startowe wybierane jak w aplikacji w trybie BvB:
-  policjanci na wierzchołkach o maksymalnej ekscentryczności, złodziej na
-  wierzchołku maksymalizującym minimalną odległość do policjantów.
+- `heuristic` (domyślnie) — pozycje startowe wybierane jak w aplikacji w trybie BvB:
+  policjanci na centralnych wierzchołkach o minimalnej ekscentryczności,
+  złodziej na wierzchołku maksymalizującym minimalną odległość do policjantów.
+- `random` — losowe różne wierzchołki dla policjantów i złodzieja.
 
 ## Szybki podgląd (smoke test)
 

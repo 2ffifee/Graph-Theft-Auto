@@ -99,7 +99,7 @@ def place_heuristic(
 ) -> tuple[tuple[int, ...], int]:
     """Heuristic placement matching the in-app bot start logic.
 
-    Cops: choose vertices with maximum eccentricity (tie-break: lower degree).
+    Cops: choose vertices with minimum eccentricity (tie-break: higher degree).
     Robber: choose vertex maximizing min-distance to chosen cops (tie-break: higher degree).
     Ties broken by deterministic RNG choice.
     """
@@ -117,9 +117,10 @@ def place_heuristic(
 
     degrees = {v: nx_g.degree(v) for v in vertices}
 
-    # Cops: pick top n_cops by (-ecc, +deg) to minimize, with random tie-break
+    # Cops: pick top n_cops by (+ecc, -deg) to minimize, with random tie-break.
+    # This mirrors CopsAndRobbersApp._choose_bot_cop_start.
     def cop_key(v: int) -> tuple[int, int]:
-        return (-eccentricities[v], degrees[v])
+        return (eccentricities[v], -degrees[v])
 
     sorted_for_cops = sorted(vertices, key=cop_key)
     # Group by key for random tie-break
@@ -187,7 +188,7 @@ def simulate_game(
     cop_spec: BotSpec,
     robber_spec: BotSpec,
     seed: int,
-    placement: str = "random",
+    placement: str = "heuristic",
     max_moves_safety: int | None = None,
 ) -> GameResult:
     """Play one game to completion.
@@ -300,7 +301,7 @@ def simulate_batch(
     n_games: int,
     master_seed: int = 42,
     graph_type: str = GRAPH_TYPE_ANY,
-    placement: str = "random",
+    placement: str = "heuristic",
     progress: bool = True,
     progress_prefix: str = "",
 ) -> BatchSummary:

@@ -1,0 +1,10 @@
+n,m,T,n_cops,graph_type,cop_strategy,robber_strategy,n_games,cop_wins,robber_wins,win_rate,mean_rounds,mean_seconds_per_game,placement,bucket
+30,75,50,1,any,random,random,5,4,1,0.8,21.2,0.0014,heuristic,n30_dense
+30,75,50,1,any,random,greedy,5,0,5,0.0,50.0,0.0053,heuristic,n30_dense
+30,75,50,1,any,random,minimax(d=3),5,0,5,0.0,50.0,2.048,heuristic,n30_dense
+30,75,50,1,any,greedy,random,5,5,0,1.0,3.2,0.001,heuristic,n30_dense
+30,75,50,1,any,greedy,greedy,5,4,1,0.8,34.2,0.0049,heuristic,n30_dense
+30,75,50,1,any,greedy,minimax(d=3),5,0,5,0.0,50.0,1.8393,heuristic,n30_dense
+30,75,50,1,any,minimax(d=3),random,5,5,0,1.0,3.8,0.1629,heuristic,n30_dense
+30,75,50,1,any,minimax(d=3),greedy,5,1,4,0.2,40.6,1.2389,heuristic,n30_dense
+30,75,50,1,any,minimax(d=3),minimax(d=3),5,1,4,0.2,40.6,2.9997,heuristic,n30_dense

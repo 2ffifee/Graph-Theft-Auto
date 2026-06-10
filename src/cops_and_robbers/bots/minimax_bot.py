@@ -34,8 +34,9 @@ class MinimaxBot(BotBase):
             raise ValueError("legal_moves must not be empty")
 
         scored_moves: list[tuple[float, int | Move]] = []
+        cache: dict[tuple[tuple[int, ...], int, PlayerRole, int, GameStatus, int], float] = {}
         for move in self._ordered_root_moves(state, legal_moves):
-            child = state.clone()
+            child = state.clone(include_history=False)
             self.rules.apply_move(child, move)
             score = self._search(
                 child,
@@ -43,7 +44,7 @@ class MinimaxBot(BotBase):
                 alpha=-math.inf,
                 beta=math.inf,
                 ply_from_root=1,
-                cache={},
+                cache=cache,
             )
             scored_moves.append((score, move))
 
@@ -86,7 +87,7 @@ class MinimaxBot(BotBase):
         if state.current_player is PlayerRole.COP:
             value = -math.inf
             for move in ordered_moves:
-                child = state.clone()
+                child = state.clone(include_history=False)
                 self.rules.apply_move(child, move)
                 value = max(
                     value,
@@ -98,7 +99,7 @@ class MinimaxBot(BotBase):
         else:
             value = math.inf
             for move in ordered_moves:
-                child = state.clone()
+                child = state.clone(include_history=False)
                 self.rules.apply_move(child, move)
                 value = min(
                     value,
@@ -122,7 +123,7 @@ class MinimaxBot(BotBase):
     def _ordered_moves(self, state: GameState, legal_moves: list[int] | list[Move]) -> list[int] | list[Move]:
         scored: list[tuple[float, int | Move]] = []
         for move in legal_moves:
-            child = state.clone()
+            child = state.clone(include_history=False)
             self.rules.apply_move(child, move)
             scored.append((self.evaluator.evaluate(child), move))
 
@@ -136,3 +137,22 @@ class MinimaxBot(BotBase):
         if state.status is GameStatus.ROBBER_WIN:
             return -self.evaluator.CAPTURE_SCORE + ply_from_root
         return None
+
+
+class AdaptiveMinimaxBot(MinimaxBot):
+    """Minimax with the same root-branching depth cap as the Pygame app."""
+
+    DEPTH_2_BRANCHING_THRESHOLD = 50
+    DEPTH_1_BRANCHING_THRESHOLD = 350
+
+    def choose_move(self, state: GameState, legal_moves: list[int] | list[Move]) -> int | Move:
+        base_depth = self.depth
+        root_branching = len(legal_moves)
+        if root_branching > self.DEPTH_1_BRANCHING_THRESHOLD:
+            self.depth = min(base_depth, 1)
+        elif root_branching > self.DEPTH_2_BRANCHING_THRESHOLD:
+            self.depth = min(base_depth, 2)
+        try:
+            return super().choose_move(state, legal_moves)
+        finally:
+            self.depth = base_depth

@@ -1,134 +1,315 @@
 # Eksperymenty
 
-Skrypty do przeprowadzenia eksperymentów zaprojektowanych
-pod prezentację. Każdy skrypt zapisuje wynik do pliku CSV w katalogu `results/`,
-a osobne narzędzie generuje z nich wykresy PNG.
+Ten katalog zawiera skrypty do uruchamiania eksperymentów bez interfejsu Pygame.
+Każdy eksperyment symuluje wiele gier bot-vs-bot, zapisuje wyniki do CSV, a
+`plot_results.py` generuje wykresy PNG z gotowych CSV.
+
+Eksperymenty używają tego samego modelu gry co aplikacja: graf nieskierowany,
+policjanci ruszają się pierwsi, w jednej rundzie najpierw wykonują wspólny ruch
+policjanci, potem rusza złodziej. Złapanie następuje, gdy po dowolnym ruchu
+policjant i złodziej stoją na tym samym wierzchołku.
 
 ## Instalacja
 
-Skrypty korzystają tylko z pakietów już używanych w projekcie
-(`networkx`) plus opcjonalnie `matplotlib` do rysowania wykresów:
-
 ```bash
-pip install matplotlib
+pip install -r requirements.txt
+pip install -e .
 ```
 
-## Uruchamianie
+Do rysowania wykresów potrzebny jest `matplotlib`, uwzględniony w
+`requirements.txt`.
 
-Wszystkie skrypty uruchamiamy z katalogu głównego projektu (tego, w którym
-znajduje się katalog `cops_and_robbers/`):
+## Wspólne założenia
+
+- Domyślny wybór pozycji startowych to `placement=heuristic`, nie losowy start.
+- Policjanci startują na centralnych wierzchołkach, czyli o minimalnej
+  ekscentryczności; przy remisie preferowany jest większy stopień.
+- Złodziej startuje na wierzchołku maksymalizującym odległość do najbliższego
+  policjanta; przy remisie preferowany jest większy stopień.
+- `random` placement nadal istnieje jako opcja, ale nie jest używany w głównych
+  eksperymentach.
+- Każda gra dostaje osobny graf i osobne ziarna losowości wyprowadzone z
+  `--seed`.
+- Generator `any` nie losuje jednostajnie po wszystkich spójnych grafach:
+  najpierw tworzy losowe drzewo rozpinające, potem dodaje losowe krawędzie.
+- Generator `tree` tworzy losowe drzewo.
+- Generator `planar` zaczyna od drzewa i dodaje tylko takie krawędzie, które nie
+  psują planarności.
+
+## Eksperyment 2: macierz bot-vs-bot
+
+Plik:
 
 ```bash
-# Eksperyment 2 — macierz bot vs bot (slajd 15)
 python -m cops_and_robbers.experiments.exp2_bot_matrix
+```
 
-# Eksperyment 3 — wpływ rozmiaru grafu (slajd 16)
+Cel: porównać strategie ruchu policjanta i złodzieja przy tej samej heurystyce
+startowej.
+
+Porównywane strategie:
+
+```text
+policjant: random, greedy, minimax(d=3)
+złodziej: random, greedy, minimax(d=3)
+```
+
+Każda para strategii jest testowana osobno, np. `greedy` policjant kontra
+`minimax(d=3)` złodziej.
+
+Domyślna konfiguracja:
+
+```text
+liczba policjantów: 1
+typ grafu: any
+liczba gier: 100 na komórkę macierzy i kubełek
+placement: heuristic
+limit rund: T=max(20, round(5n/3))
+```
+
+Kubełki grafów:
+
+```text
+n12_sparse: n=12, m=18, T=20
+n12_dense:  n=12, m=30, T=20
+n30_sparse: n=30, m=45, T=50
+n30_dense:  n=30, m=75, T=50
+```
+
+Wynik CSV:
+
+```text
+src/results/exp2_bot_matrix.csv
+```
+
+Wykresy PNG są generowane osobno dla każdego kubełka:
+
+```text
+src/results/exp2_bot_matrix_n12_sparse.png
+src/results/exp2_bot_matrix_n12_dense.png
+src/results/exp2_bot_matrix_n30_sparse.png
+src/results/exp2_bot_matrix_n30_dense.png
+```
+
+Interpretacja: wynik mówi, jak często policjant wygrywa przeciwko danej
+strategii złodzieja na losowych grafach z danego kubełka. To nie jest dowód
+optymalności strategii; minimax jest ograniczony głębokością.
+
+## Eksperyment 3: wpływ rozmiaru grafu
+
+Plik:
+
+```bash
 python -m cops_and_robbers.experiments.exp3_size_sweep
+```
 
-# Eksperyment 4 — liczba policjantów × typ grafu (slajd 17)
+Cel: sprawdzić, jak skuteczność strategii policjanta zmienia się wraz z
+rozmiarem grafu.
+
+Domyślna konfiguracja:
+
+```text
+n: 5, 8, 10, 15, 20, 25, 30
+m: round(1.5n), z clampem do legalnego zakresu
+T: max(10, 2n)
+liczba policjantów: 1
+typ grafu: any
+liczba gier: 100 na punkt
+placement: heuristic
+```
+
+Domyślnie porównywane są strategie policjanta:
+
+```text
+random
+greedy
+minimax(d=3)
+```
+
+Są dwa warianty złodzieja:
+
+```text
+greedy
+minimax(d=3)
+```
+
+Czyli eksperyment tworzy dwa zestawy krzywych:
+
+```text
+policjanci random/greedy/minimax kontra złodziej greedy
+policjanci random/greedy/minimax kontra złodziej minimax(d=3)
+```
+
+Wynik CSV:
+
+```text
+src/results/exp3_size_sweep.csv
+```
+
+Wykresy PNG:
+
+```text
+src/results/exp3_size_sweep_robber_greedy.png
+src/results/exp3_size_sweep_robber_minimax.png
+```
+
+Interpretacja: eksperyment pokazuje, czy dana strategia policjanta traci
+skuteczność, gdy graf rośnie. Osobne wykresy dla złodzieja greedy i minimax
+pozwalają odróżnić łatwego przeciwnika od silniejszego przeciwnika.
+
+## Eksperyment 4: liczba policjantów i typ grafu
+
+Plik:
+
+```bash
 python -m cops_and_robbers.experiments.exp4_cops_x_type
-
-# Wykresy z zapisanych CSV
-python -m cops_and_robbers.experiments.plot_results
 ```
 
-Każdy skrypt akceptuje `--help` z pełną listą opcji.
+Cel: sprawdzić, jak liczba policjantów wpływa na wygraną na różnych typach
+grafów.
 
-## Domyślne parametry
+Porównywane wartości:
 
-Domyślne wartości odpowiadają sugestiom z placeholderów WIP w prezentacji.
-
-### Eksperyment 2 — Macierz bot vs bot
-- `n=12`, `m=18`, `T=30`, `n_cops=1`
-- `N=1000` gier na komórkę macierzy
-- Strategie: `random`, `greedy`, `minimax(d=3)`
-- Czas: ~kilka minut (głównie z powodu komórek z minimax)
-
-Szybsza wersja (bez minimax):
-```bash
-python -m cops_and_robbers.experiments.exp2_bot_matrix --no-minimax --games 1000
+```text
+liczba policjantów k: 1, 2, 3
+typy grafów: any, tree, planar
 ```
 
-### Eksperyment 3 — Wpływ rozmiaru grafu
-- `n ∈ {5, 8, 10, 15, 20, 25, 30}`, `m/n ≈ 1.5`, `T = 2n`
-- `N=200` gier na punkt, `n_cops=1`
-- Domyślnie porównuje strategie policjanta: `random` vs `greedy` vs `minimax(d=2)`
-- Domyślny przeciwnik (robber) to `greedy`
-- Czas: ~kilka minut
+Domyślna konfiguracja:
 
-Aby porównać strategie *złodzieja* przy ustalonym policjancie:
-```bash
-python -m cops_and_robbers.experiments.exp3_size_sweep --compare robber-strategies
+```text
+bot policjanta: minimax(d=3, adaptive)
+bot złodzieja: minimax(d=3, adaptive)
+liczba gier: 20 na konfigurację
+placement: heuristic
+limit rund: T=max(20, round(5n/3))
 ```
 
-### Eksperyment 4 — Liczba policjantów × typ grafu
-- `n=12`, `m=18` (auto-clampowane do n−1 dla drzew), `T=30`
-- `k ∈ {1, 2, 3}` × typy `{any, tree, planar}`
-- `N=200` gier na konfigurację
-- Boty domyślnie `minimax` z głębokościami z presetu *Expert*
-  (`d_cop = 5` dla `k=1`, `d=3` dla `k=2,3`)
-- Czas: ~kilka minut
+Kubełki grafów:
 
-Szybsza wersja (boty greedy):
-```bash
-python -m cops_and_robbers.experiments.exp4_cops_x_type --bot greedy
+```text
+n12_sparse: n=12, m=18, T=20
+n12_dense:  n=12, m=30, T=20
+n30_sparse: n=30, m=45, T=50
+n30_dense:  n=30, m=75, T=50
 ```
 
-## Pliki wyjściowe
+Dla drzew liczba krawędzi jest automatycznie ustawiana na `n-1`. Dla grafów
+planarnych liczba krawędzi jest ograniczana przez limit planarny `3n-6`.
 
-Wszystkie skrypty zapisują do `results/` (parametr `--output-dir`):
+Adaptive minimax:
 
-| Eksperyment | CSV                          | PNG                          |
-| ----------- | ---------------------------- | ---------------------------- |
-| 2           | `exp2_bot_matrix.csv`        | `exp2_bot_matrix.png`        |
-| 3           | `exp3_size_sweep.csv`        | `exp3_size_sweep.png`        |
-| 4           | `exp4_cops_x_type.csv`       | `exp4_cops_x_type.png`       |
+```text
+root branching <= 50  -> używa depth 3
+51..350               -> obcina do depth 2
+>350                  -> obcina do depth 1
+```
 
-Kolumny w CSV-ach: `n, m, T, n_cops, graph_type, cop_strategy,
-robber_strategy, n_games, cop_wins, robber_wins, win_rate, mean_rounds,
-mean_seconds_per_game, placement`.
+To jest konieczne głównie dla wielu policjantów, bo liczba wspólnych ruchów
+policji jest iloczynem liczby legalnych ruchów każdego policjanta.
 
-## Reprodukowalność
+Wynik CSV:
 
-Każdy skrypt akceptuje `--seed`. Z tego ziarna wyprowadzane są:
-- ziarno generatora grafu dla każdej gry,
-- ziarno wyboru pozycji startowych,
-- ziarna botów (osobne dla policjantów i złodzieja).
+```text
+src/results/exp4_cops_x_type.csv
+```
 
-Pełna rozgrywka jest deterministyczna przy tym samym `--seed` i tej samej
-konfiguracji.
+Wykres PNG:
 
-## Wybór pozycji startowych
+```text
+src/results/exp4_cops_x_type.png
+```
 
-Flaga `--placement`:
-- `random` (domyślnie) — losowe różne wierzchołki dla policjantów i złodzieja.
-- `heuristic` — pozycje startowe wybierane jak w aplikacji w trybie BvB:
-  policjanci na wierzchołkach o maksymalnej ekscentryczności, złodziej na
-  wierzchołku maksymalizującym minimalną odległość do policjantów.
+Interpretacja: eksperyment jest empirycznym testem zachowania botów, nie
+dowodem twierdzeń teoretycznych. Dla drzew spodziewamy się bardzo wysokiej
+skuteczności już dla `k=1`. Dla grafów planarnych twierdzenie Aignera-Fromme'a
+mówi, że 3 policjantów wystarcza w grze optymalnej, ale tutaj testujemy
+ograniczonego minimaxa.
 
-## Szybki podgląd (smoke test)
+## Uruchamianie pełnego zestawu
+
+Pełny zestaw eksperymentów i wykresów:
 
 ```bash
-python -m cops_and_robbers.experiments.exp2_bot_matrix --games 20 --no-minimax
-python -m cops_and_robbers.experiments.exp3_size_sweep --games 20 --no-minimax --n-values 5 10 15
-python -m cops_and_robbers.experiments.exp4_cops_x_type --games 20 --bot greedy
-python -m cops_and_robbers.experiments.plot_results
+python scripts/run_full_experiments.py --workers 4
 ```
+
+Domyślne wyniki:
+
+```text
+CSV i PNG: src/results/
+log:       src/results/full_experiments.log
+```
+
+Lżejszy przebieg:
+
+```bash
+python scripts/run_full_experiments.py --workers 4 --exp2-games 50 --exp3-games 50 --exp4-games 10
+```
+
+## Benchmark czasu
+
+Przed pełnym uruchomieniem można odpalić reprezentatywne próbki najcięższych
+wariantów:
+
+```bash
+python scripts/benchmark_experiments.py --workers 4
+```
+
+Domyślnie zapisuje wyniki i log do:
+
+```text
+tmp_bench/
+```
+
+## Same wykresy
+
+Jeżeli CSV-y już istnieją, można ponownie wygenerować tylko PNG:
+
+```bash
+python -m cops_and_robbers.experiments.plot_results --results-dir src/results --exp 2 3 4
+```
+
+To nie uruchamia symulacji ponownie.
+
+## Najważniejsze kolumny CSV
+
+```text
+n, m, T
+n_cops
+graph_type
+cop_strategy
+robber_strategy
+n_games
+cop_wins
+robber_wins
+win_rate
+mean_rounds
+mean_seconds_per_game
+placement
+bucket
+```
+
+W `exp4` dodatkowo zapisywana jest kolumna `k`, równa liczbie policjantów.
 
 ## Korzystanie z poziomu kodu
 
-`runner.py` jest pomyślany jako biblioteka — możesz importować z niego
-funkcje w notebooku Jupyter, własnym skrypcie itp.
+`runner.py` można importować z notebooka lub własnego skryptu:
 
 ```python
 from cops_and_robbers.experiments.runner import BotSpec, simulate_batch
 
 summary = simulate_batch(
-    n=15, m=22, T=30, n_cops=2,
+    n=15,
+    m=22,
+    T=30,
+    n_cops=2,
     cop_spec=BotSpec("minimax", depth=3),
     robber_spec=BotSpec("greedy"),
-    n_games=500, master_seed=2025,
+    n_games=500,
+    master_seed=2025,
     graph_type="planar",
+    placement="heuristic",
 )
 print(summary.as_dict())
 ```

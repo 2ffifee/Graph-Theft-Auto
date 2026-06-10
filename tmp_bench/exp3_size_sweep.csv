@@ -1,0 +1,13 @@
+n,m,T,n_cops,graph_type,cop_strategy,robber_strategy,n_games,cop_wins,robber_wins,win_rate,mean_rounds,mean_seconds_per_game,placement,comparison_label
+5,8,10,1,any,random,greedy,5,3,2,0.6,7.8,0.0008,heuristic,COP=random vs ROBBER=greedy
+5,8,10,1,any,greedy,greedy,5,5,0,1.0,1.0,0.0002,heuristic,COP=greedy vs ROBBER=greedy
+5,8,10,1,any,minimax(d=3),greedy,5,5,0,1.0,1.0,0.0075,heuristic,COP=minimax(d=3) vs ROBBER=greedy
+5,8,10,1,any,random,minimax(d=3),5,2,3,0.4,8.4,0.0314,heuristic,COP=random vs ROBBER=minimax(d=3)
+5,8,10,1,any,greedy,minimax(d=3),5,5,0,1.0,1.0,0.0002,heuristic,COP=greedy vs ROBBER=minimax(d=3)
+5,8,10,1,any,minimax(d=3),minimax(d=3),5,5,0,1.0,1.0,0.0077,heuristic,COP=minimax(d=3) vs ROBBER=minimax(d=3)
+30,45,60,1,any,random,greedy,5,1,4,0.2,53.6,0.0037,heuristic,COP=random vs ROBBER=greedy
+30,45,60,1,any,greedy,greedy,5,5,0,1.0,4.6,0.001,heuristic,COP=greedy vs ROBBER=greedy
+30,45,60,1,any,minimax(d=3),greedy,5,4,1,0.8,17.6,0.205,heuristic,COP=minimax(d=3) vs ROBBER=greedy
+30,45,60,1,any,random,minimax(d=3),5,0,5,0.0,60.0,0.9364,heuristic,COP=random vs ROBBER=minimax(d=3)
+30,45,60,1,any,greedy,minimax(d=3),5,1,4,0.2,48.8,0.8013,heuristic,COP=greedy vs ROBBER=minimax(d=3)
+30,45,60,1,any,minimax(d=3),minimax(d=3),5,1,4,0.2,48.8,1.8321,heuristic,COP=minimax(d=3) vs ROBBER=minimax(d=3)

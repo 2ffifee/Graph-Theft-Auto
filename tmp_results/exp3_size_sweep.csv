@@ -1,0 +1,3 @@
+n,m,T,n_cops,graph_type,cop_strategy,robber_strategy,n_games,cop_wins,robber_wins,win_rate,mean_rounds,mean_seconds_per_game,placement,comparison_label
+5,8,10,1,any,random,greedy,2,1,1,0.5,8.5,0.0019,heuristic,COP=random vs ROBBER=greedy
+5,8,10,1,any,greedy,greedy,2,2,0,1.0,1.0,0.0001,heuristic,COP=greedy vs ROBBER=greedy

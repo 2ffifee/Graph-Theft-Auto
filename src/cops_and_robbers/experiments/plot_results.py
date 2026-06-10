@@ -104,19 +104,40 @@ def plot_exp2(csv_path: str, output_path: str) -> None:
         print(f"Wykres: {bucket_path}")
 
 
-def plot_exp3(csv_path: str, output_path: str) -> None:
-    """Save one line chart per fixed robber strategy."""
+def plot_exp3(csv_path: str, output_path: str, fixed_strategy: str = "robber") -> None:
+    """Save one line chart per fixed strategy in experiment 3.
+
+    By default the function creates one chart per fixed robber strategy and
+    draws one series per cop strategy. When fixed_strategy="cop" it creates one
+    chart per fixed cop strategy and draws one series per robber strategy.
+    """
     plt = _import_matplotlib()
     rows = _read_csv(csv_path)
 
-    robber_strategies = _ordered_unique(row["robber_strategy"] for row in rows)
-    colors_cycle = [COLOR_COP, COLOR_ROBBER, COLOR_YELLOW, COLOR_MUTED, COLOR_NAVY, "#2E8B57"]
+    fixed_strategy = fixed_strategy.lower()
+    if fixed_strategy == "robber":
+        group_key = "robber_strategy"
+        series_key = "cop_strategy"
+        fixed_label = "złodziej"
+        series_label = "COP"
+        suffix_prefix = "robber"
+    elif fixed_strategy == "cop":
+        group_key = "cop_strategy"
+        series_key = "robber_strategy"
+        fixed_label = "policjant"
+        series_label = "ROBBER"
+        suffix_prefix = "cop"
+    else:
+        raise ValueError("fixed_strategy must be either 'robber' or 'cop'")
 
-    for robber_strategy in robber_strategies:
-        robber_rows = [row for row in rows if row["robber_strategy"] == robber_strategy]
+    colors_cycle = [COLOR_COP, COLOR_ROBBER, COLOR_YELLOW, COLOR_MUTED, COLOR_NAVY, "#2E8B57"]
+    fixed_values = _ordered_unique(row[group_key] for row in rows)
+
+    for fixed_value in fixed_values:
+        fixed_rows = [row for row in rows if row[group_key] == fixed_value]
         series: dict[str, list[tuple[int, float]]] = defaultdict(list)
-        for row in robber_rows:
-            series[row["cop_strategy"]].append((int(row["n"]), float(row["win_rate"])))
+        for row in fixed_rows:
+            series[row[series_key]].append((int(row["n"]), float(row["win_rate"])))
         for label in series:
             series[label].sort()
 
@@ -124,22 +145,22 @@ def plot_exp3(csv_path: str, output_path: str) -> None:
         for i, (label, points) in enumerate(series.items()):
             xs = [point[0] for point in points]
             ys = [point[1] * 100 for point in points]
-            ax.plot(xs, ys, marker="o", label=f"COP={label}",
+            ax.plot(xs, ys, marker="o", label=f"{series_label}={label}",
                     color=colors_cycle[i % len(colors_cycle)], linewidth=2)
 
         ax.set_xlabel("n (liczba wierzchołków)", color=COLOR_NAVY)
         ax.set_ylabel("win-rate policjantów [%]", color=COLOR_NAVY)
-        ax.set_title(f"Eksperyment 3 - złodziej: {robber_strategy}",
+        ax.set_title(f"Eksperyment 3 - {fixed_label}: {fixed_value}",
                      color=COLOR_NAVY, weight="bold", pad=14)
         ax.set_ylim(-2, 105)
         ax.axhline(50, color=COLOR_RULE, linestyle="--", linewidth=0.8, zorder=0)
         ax.grid(True, alpha=0.25)
         ax.legend(loc="best", framealpha=0.95)
         fig.tight_layout()
-        robber_path = _with_suffix(output_path, f"robber_{_filename_slug(robber_strategy)}")
-        fig.savefig(robber_path, dpi=150, facecolor="white")
+        chart_path = _with_suffix(output_path, f"{suffix_prefix}_{_filename_slug(fixed_value)}")
+        fig.savefig(chart_path, dpi=150, facecolor="white")
         plt.close(fig)
-        print(f"Wykres: {robber_path}")
+        print(f"Wykres: {chart_path}")
 
 
 def plot_exp4(csv_path: str, output_path: str) -> None:
@@ -203,6 +224,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--exp", type=int, nargs="+", default=[2, 3, 4],
                         choices=[2, 3, 4],
                         help="które eksperymenty zwizualizować (default: 2 3 4)")
+    parser.add_argument("--exp3-mode", choices=["robber", "cop", "both"], default="both",
+                        help="tryb wykresów dla eksperymentu 3: stały złodziej, stały policjant lub oba")
     args = parser.parse_args(argv)
 
     plotters = {
@@ -217,7 +240,12 @@ def main(argv: list[str] | None = None) -> None:
         if not os.path.exists(csv_path):
             print(f"Brak: {csv_path}  (najpierw uruchom odpowiedni eksperyment)")
             continue
-        plot_fn(csv_path, png_path)
+        if exp_num == 3:
+            modes = ([args.exp3_mode] if args.exp3_mode != "both" else ["robber", "cop"])
+            for mode in modes:
+                plot_fn(csv_path, png_path, fixed_strategy=mode)
+        else:
+            plot_fn(csv_path, png_path)
 
 
 if __name__ == "__main__":

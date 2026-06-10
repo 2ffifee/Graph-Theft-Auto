@@ -11,6 +11,7 @@ class GraphModel:
             raise ValueError(f"n must be positive; got {n}")
         self._graph = nx.Graph()
         self._graph.add_nodes_from(range(n))
+        self._distance_cache: dict[int, dict[int, int]] = {}
 
     @property
     def n(self) -> int:
@@ -26,6 +27,7 @@ class GraphModel:
         if u == v:
             raise ValueError("self-loops are not allowed")
         self._graph.add_edge(u, v)
+        self._distance_cache.clear()
 
     def has_edge(self, u: int, v: int) -> bool:
         self._validate_vertex(u)
@@ -52,7 +54,9 @@ class GraphModel:
     def shortest_distance(self, source: int, target: int) -> int:
         self._validate_vertex(source)
         self._validate_vertex(target)
-        return nx.shortest_path_length(self._graph, source, target)
+        if source not in self._distance_cache:
+            self._distance_cache[source] = dict(nx.single_source_shortest_path_length(self._graph, source))
+        return self._distance_cache[source][target]
 
     def is_connected(self) -> bool:
         return nx.is_connected(self._graph)

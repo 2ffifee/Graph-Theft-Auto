@@ -22,11 +22,12 @@ from __future__ import annotations
 import random
 import time
 from dataclasses import dataclass, field
+from multiprocessing import Pool
 from typing import Iterable, Iterator
 
 from cops_and_robbers.bots.bot_base import BotBase
 from cops_and_robbers.bots.greedy_bot import GreedyBot
-from cops_and_robbers.bots.minimax_bot import MinimaxBot
+from cops_and_robbers.bots.minimax_bot import AdaptiveMinimaxBot, MinimaxBot
 from cops_and_robbers.bots.random_bot import RandomBot
 from cops_and_robbers.core.game_rules import GameRules
 from cops_and_robbers.core.game_state import GameState, GameStatus
@@ -49,7 +50,7 @@ from cops_and_robbers.utils.validation import (
 class BotSpec:
     """Declarative description of a bot.
 
-    `kind` is one of "random", "greedy", "minimax".
+    `kind` is one of "random", "greedy", "minimax", "adaptive_minimax".
     `depth` is required for minimax, ignored otherwise.
     """
     kind: str
@@ -58,6 +59,8 @@ class BotSpec:
     def label(self) -> str:
         if self.kind == "minimax":
             return f"minimax(d={self.depth})"
+        if self.kind == "adaptive_minimax":
+            return f"minimax(d={self.depth},adaptive)"
         return self.kind
 
     def __str__(self) -> str:
@@ -74,6 +77,10 @@ def make_bot(spec: BotSpec, role: PlayerRole, seed: int | None) -> BotBase:
         if spec.depth is None or spec.depth < 1:
             raise ValueError(f"minimax bot requires depth >= 1; got {spec.depth!r}")
         return MinimaxBot(role=role, depth=spec.depth, seed=seed)
+    if spec.kind == "adaptive_minimax":
+        if spec.depth is None or spec.depth < 1:
+            raise ValueError(f"adaptive minimax bot requires depth >= 1; got {spec.depth!r}")
+        return AdaptiveMinimaxBot(role=role, depth=spec.depth, seed=seed)
     raise ValueError(f"unknown bot kind: {spec.kind!r}")
 
 
@@ -247,6 +254,22 @@ def simulate_game(
     )
 
 
+def _simulate_batch_game(
+    task: tuple[int, int, int, int, BotSpec, BotSpec, int, str, str],
+) -> GameResult:
+    n, m, T, n_cops, cop_spec, robber_spec, game_seed, graph_type, placement = task
+    graph = generate_connected_graph(n, m, seed=game_seed, graph_type=graph_type)
+    return simulate_game(
+        graph,
+        n_cops=n_cops,
+        T=T,
+        cop_spec=cop_spec,
+        robber_spec=robber_spec,
+        seed=game_seed,
+        placement=placement,
+    )
+
+
 # ============================================================================
 # Batch
 # ============================================================================
@@ -304,39 +327,52 @@ def simulate_batch(
     placement: str = "heuristic",
     progress: bool = True,
     progress_prefix: str = "",
+    workers: int = 1,
 ) -> BatchSummary:
     """Run `n_games` games. Each game uses a freshly generated graph + new seed."""
     cop_wins = 0
     total_rounds = 0
     total_seconds = 0.0
     start = time.perf_counter()
+    workers = max(1, workers)
 
-    for i in range(n_games):
-        game_seed = master_seed * 1_000_003 + i * 31 + 1
-        # Generate a new graph per game (different seed → different graph)
-        graph = generate_connected_graph(n, m, seed=game_seed, graph_type=graph_type)
-        result = simulate_game(
-            graph,
-            n_cops=n_cops, T=T,
-            cop_spec=cop_spec, robber_spec=robber_spec,
-            seed=game_seed,
-            placement=placement,
+    tasks = [
+        (
+            n, m, T, n_cops, cop_spec, robber_spec,
+            master_seed * 1_000_003 + i * 31 + 1,
+            graph_type, placement,
         )
-        if result.cop_wins:
-            cop_wins += 1
-        total_rounds += result.rounds_played
-        total_seconds += result.elapsed_seconds
+        for i in range(n_games)
+    ]
 
-        if progress and (i + 1) % max(1, n_games // 10) == 0:
-            elapsed = time.perf_counter() - start
-            rate = (i + 1) / elapsed if elapsed > 0 else 0
-            print(
-                f"  {progress_prefix}"
-                f"{i + 1}/{n_games} games  "
-                f"cop_wins={cop_wins} ({cop_wins/(i+1):.1%})  "
-                f"{rate:.1f} g/s",
-                flush=True,
-            )
+    if workers == 1:
+        results_iter: Iterable[GameResult] = (_simulate_batch_game(task) for task in tasks)
+    else:
+        chunksize = max(1, n_games // (workers * 4))
+        pool = Pool(processes=workers)
+        results_iter = pool.imap_unordered(_simulate_batch_game, tasks, chunksize=chunksize)
+
+    try:
+        for i, result in enumerate(results_iter, start=1):
+            if result.cop_wins:
+                cop_wins += 1
+            total_rounds += result.rounds_played
+            total_seconds += result.elapsed_seconds
+
+            if progress and i % max(1, n_games // 10) == 0:
+                elapsed = time.perf_counter() - start
+                rate = i / elapsed if elapsed > 0 else 0
+                print(
+                    f"  {progress_prefix}"
+                    f"{i}/{n_games} games  "
+                    f"cop_wins={cop_wins} ({cop_wins/i:.1%})  "
+                    f"{rate:.1f} g/s",
+                    flush=True,
+                )
+    finally:
+        if workers != 1:
+            pool.close()
+            pool.join()
 
     return BatchSummary(
         n=n, m=m, T=T, n_cops=n_cops, graph_type=graph_type,

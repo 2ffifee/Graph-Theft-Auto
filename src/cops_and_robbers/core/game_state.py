@@ -89,7 +89,7 @@ class GameState:
             return self.cop_position
         return self.robber_position
 
-    def clone(self) -> "GameState":
+    def clone(self, include_history: bool = True) -> "GameState":
         return GameState(
             graph=self.graph,
             cop_positions=self.cop_positions,
@@ -98,5 +98,5 @@ class GameState:
             current_player=self.current_player,
             current_round=self.current_round,
             status=self.status,
-            move_history=list(self.move_history),
+            move_history=list(self.move_history) if include_history else [],
         )

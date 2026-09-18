@@ -1,3 +1,0 @@
-n,m,T,n_cops,graph_type,cop_strategy,robber_strategy,n_games,cop_wins,robber_wins,win_rate,mean_rounds,mean_seconds_per_game,placement,k,bucket
-30,75,30,3,any,"minimax(d=3,adaptive)","minimax(d=3,adaptive)",4,4,0,1.0,2.75,18.7279,heuristic,3,n30_dense
-30,75,30,3,planar,"minimax(d=3,adaptive)","minimax(d=3,adaptive)",4,4,0,1.0,2.25,40.2658,heuristic,3,n30_dense

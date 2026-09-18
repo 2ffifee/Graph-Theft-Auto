@@ -1,8 +1,18 @@
 # Graph Theft Auto
 
-A minimal playable desktop implementation of a Cops and Robbers game on finite graphs.
+An interactive desktop implementation of the classic Cops and Robbers game on
+finite graphs. It combines a playable Pygame interface with reusable game logic,
+several bot strategies, and a headless simulation framework for comparing them.
 
-The application uses Python, Pygame, and NetworkX. Version 1 supports one to three cops, one robber, random connected graphs, a round limit, click-based player-vs-player gameplay, and a clean code layout for later graph theory extensions.
+Built with Python 3.11+, Pygame, NetworkX, and Matplotlib.
+
+## Highlights
+
+- Play with one to three cops in player-vs-player, player-vs-bot, or bot-vs-bot modes.
+- Generate connected general, tree, and planar graphs with configurable sizes.
+- Compare random, greedy, and depth-limited minimax bots with alpha-beta pruning.
+- Run reproducible experiments without the UI and export results to CSV and PNG.
+- Keep the game rules, graph model, bots, experiments, and rendering code separated.
 
 ## Rules
 
@@ -16,6 +26,15 @@ The application uses Python, Pygame, and NetworkX. Version 1 supports one to thr
 - At the start of each game, cops choose starting vertices first, then the robber chooses a different starting vertex.
 
 ## Setup on Linux
+
+Requires Python 3.11 or newer with `venv` support. On Debian/Ubuntu, install
+the system prerequisite if it is not already available:
+
+```bash
+sudo apt install python3-venv
+```
+
+Some releases use a versioned package such as `python3.12-venv` instead.
 
 ```bash
 ./scripts/setup_linux.sh
@@ -51,6 +70,9 @@ python -m cops_and_robbers.main
 pytest
 ```
 
+The test suite covers graph generation, game rules and state transitions,
+multi-cop gameplay, bot decisions, placement heuristics, and UI integration.
+
 ## Current Features
 
 - Setup screen with controls for vertices `n`, edges `m`, round limit `T`, and number of cops.
@@ -71,9 +93,28 @@ pytest
 
 The random connected graph generator first creates a random spanning tree and then adds random extra edges until the requested number of edges is reached. This guarantees connectedness and exact edge count, but it is not a uniform sampler over all connected graphs with n vertices and m edges.
 
-## Planned Extensions
+## Experiments
 
-- Named graph families such as paths, cycles, grids, ladders, trees, and complete graphs.
-- Optimal finite-horizon bots.
-- Cop-win detection and dismantling analysis.
-- Custom graph editor.
+The headless experiment suite runs batches of bot-vs-bot games across different
+graph sizes, densities, graph types, and numbers of cops. Runs are seeded for
+reproducibility and can use multiple worker processes.
+
+```bash
+python scripts/run_full_experiments.py --workers 4
+```
+
+See the [experiment documentation](src/cops_and_robbers/experiments/README.md)
+for configurations, output formats, and interpretation of the included results.
+
+## Project Structure
+
+```text
+src/cops_and_robbers/
+├── core/         graph model, game state, and rules
+├── bots/         random, greedy, and minimax strategies
+├── ui/           Pygame application and rendering
+├── experiments/  headless simulations and plotting
+└── utils/        validation and shared helpers
+tests/             automated test suite
+scripts/           setup, launch, and experiment commands
+```

@@ -18,3 +18,9 @@ dist/
 build/
 *.egg-info/
 pip-wheel-metadata/
+
+# Generated experiment artifacts
+/tmp_bench/
+/tmp_results/
+/src/results.zip
+/src/results/*.log

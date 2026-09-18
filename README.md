@@ -103,7 +103,7 @@ reproducibility and can use multiple worker processes.
 python scripts/run_full_experiments.py --workers 4
 ```
 
-See the [experiment documentation](src/cops_and_robbers/experiments/README.md)
+See the [experiment documentation](src/cops_and_robbers/experiments/README.en.md)
 for configurations, output formats, and interpretation of the included results.
 
 ## Project Structure

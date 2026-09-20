@@ -6,6 +6,9 @@ several bot strategies, and a headless simulation framework for comparing them.
 
 Built with Python 3.11+, Pygame, NetworkX, and Matplotlib.
 
+<img width="1535" height="970" alt="Screenshot GTA" src="https://github.com/user-attachments/assets/603302ea-81bb-47e6-af7d-5a968802fbbc" />
+
+
 ## Highlights
 
 - Play with one to three cops in player-vs-player, player-vs-bot, or bot-vs-bot modes.
